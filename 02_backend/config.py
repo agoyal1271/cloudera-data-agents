@@ -5,8 +5,20 @@ load_dotenv(override=True)
 
 # LLM (OpenAI-compatible: Ollama locally, Cloudera AI Inference in prod)
 LLM_BASE_URL = os.getenv("CLOUDERA_AI_URL", "http://localhost:11434/v1")
-LLM_MODEL = os.getenv("CLOUDERA_AI_MODEL", "qwen2.5:14b")
-LLM_API_KEY = os.getenv("CLOUDERA_AI_KEY", "ollama")
+LLM_MODEL    = os.getenv("CLOUDERA_AI_MODEL", "qwen2.5:14b")
+
+def _llm_api_key() -> str:
+    key = os.getenv("CLOUDERA_AI_KEY", "ollama")
+    if key == "auto":
+        # Inside CML, a JWT is auto-provisioned at /tmp/jwt — use it.
+        try:
+            import json as _json
+            return _json.load(open("/tmp/jwt"))["access_token"]
+        except Exception:
+            pass
+    return key
+
+LLM_API_KEY = _llm_api_key()
 
 # Kafka
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")

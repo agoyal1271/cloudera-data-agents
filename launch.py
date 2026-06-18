@@ -41,28 +41,36 @@ def run_frontend():
     if IS_CLOUDERA:
         dist = os.path.join(FRONTEND_DIR, "dist")
         node_modules = os.path.join(FRONTEND_DIR, "node_modules")
-        npm = os.getenv("NPM_BIN", "npm")
-
-        # Install Python deps if needed
+        # Install Python deps
         req = os.path.join(BASE_DIR, "02_backend", "requirements.txt")
         if os.path.exists(req):
             print("Installing Python dependencies...")
-            subprocess.run([PYTHON, "-m", "pip", "install", "-r", req, "-q"],
-                           check=False)
+            subprocess.run([PYTHON, "-m", "pip", "install", "-r", req, "-q"], check=False)
 
-        # Install npm deps if node_modules missing
-        if not os.path.isdir(node_modules):
-            print("Installing npm dependencies...")
-            subprocess.run([npm, "install", "--silent"], cwd=FRONTEND_DIR, check=False)
+        # Find npm — try common locations
+        npm = None
+        for candidate in [os.getenv("NPM_BIN", ""), "/usr/bin/npm", "/usr/local/bin/npm",
+                          "/opt/homebrew/bin/npm", "npm"]:
+            if not candidate:
+                continue
+            try:
+                if subprocess.run([candidate, "--version"], capture_output=True).returncode == 0:
+                    npm = candidate
+                    break
+            except FileNotFoundError:
+                continue
 
-        # Build frontend if dist missing
-        if not os.path.isdir(dist):
-            print("Building React frontend...")
-            result = subprocess.run([npm, "run", "build"], cwd=FRONTEND_DIR)
-            if result.returncode != 0:
-                print("WARNING: npm build failed — API still runs, UI may be unavailable.")
+        if npm:
+            if not os.path.isdir(node_modules):
+                print(f"Installing npm deps with {npm}...")
+                subprocess.run([npm, "install", "--silent"], cwd=FRONTEND_DIR, check=False)
+            if not os.path.isdir(dist):
+                print("Building React frontend...")
+                subprocess.run([npm, "run", "build"], cwd=FRONTEND_DIR, check=False)
+            else:
+                print("Frontend dist/ already built.")
         else:
-            print("Frontend already built — skipping npm build.")
+            print("npm not found — skipping frontend build. API-only mode.")
 
         print(f"Frontend served by FastAPI on port {APP_PORT}")
     else:

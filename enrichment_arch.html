@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Metadata curation has a ceiling</title>
+<style>
+  :root{
+    --magenta:#E20074; --magenta-tint:#FCEAF3; --magenta-line:#F3CFE1;
+    --orange:#F96702; --orange-tint:#FFF2E8; --orange-line:#FAD9BF;
+    --om:#1577C2; --om-tint:#E9F2FB; --om-line:#C5DDF2;
+    --ink:#15171C; --ink2:#4B5563; --line:#E4E8EE; --gray:#9AA2AD; --graybg:#F5F6F8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;}
+  body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:#33363b;
+    display:flex;align-items:center;justify-content:center;padding:24px;color:var(--ink);}
+  .slide{width:1280px;height:720px;background:#fff;border-radius:14px;overflow:hidden;
+    display:flex;flex-direction:column;box-shadow:0 24px 70px rgba(0,0,0,.45);}
+  .topbar{height:6px;background:var(--magenta);}
+  .pad{padding:28px 52px 26px;flex:1;display:flex;flex-direction:column;gap:20px;}
+
+  /* header */
+  .eyebrow{font-size:11.5px;letter-spacing:2.5px;font-weight:700;color:var(--magenta);text-transform:uppercase;}
+  .headline{display:flex;align-items:baseline;justify-content:space-between;gap:24px;}
+  h1{font-size:28px;font-weight:800;letter-spacing:-.6px;line-height:1.1;color:var(--ink);}
+  h1 em{color:var(--magenta);font-style:normal;}
+  .forbadge{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--ink2);font-weight:700;
+    border:1px solid var(--magenta-line);background:var(--magenta-tint);padding:6px 12px;border-radius:9px;white-space:nowrap;flex:none;}
+  .tmo{width:20px;height:20px;border-radius:5px;background:var(--magenta);color:#fff;font-weight:800;font-size:12px;
+    display:flex;align-items:center;justify-content:center;flex:none;}
+
+  /* diagram */
+  .diagram{flex:1;display:grid;grid-template-columns:148px 140px 210px 180px 240px;align-items:center;gap:0;}
+
+  /* nodes */
+  .node{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;}
+  .icon-wrap{width:68px;height:68px;border-radius:20px;display:flex;align-items:center;justify-content:center;flex:none;}
+  .node-label{font-size:13px;font-weight:800;line-height:1.25;}
+  .node-sub{font-size:11px;color:var(--ink2);font-weight:500;line-height:1.3;}
+
+  .n-user .icon-wrap{background:var(--magenta-tint);border:2px solid var(--magenta-line);}
+  .n-cai  .icon-wrap{background:var(--orange-tint);border:2px solid var(--orange-line);box-shadow:0 8px 24px rgba(249,103,2,.15);}
+  .n-om   .icon-wrap{background:var(--om-tint);border:2px solid var(--om-line);}
+  .n-cdp  {position:relative;}
+  .n-cdp  .icon-wrap{background:var(--orange-tint);border:2px solid var(--orange-line);}
+
+  .n-user .node-label{color:var(--magenta);}
+  .n-cai  .node-label{color:var(--orange);}
+  .n-om   .node-label{color:var(--om);}
+  .n-cdp  .node-label{color:var(--orange);}
+
+  /* connector columns */
+  .conn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;height:100%;}
+
+  /* arrows + labels */
+  .arrow-row{display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;}
+  .arr-label{font-size:10.5px;font-weight:700;letter-spacing:.2px;text-align:center;line-height:1.3;}
+  .arr-line{width:100%;height:2px;position:relative;display:flex;align-items:center;}
+  .arr-line svg{width:100%;height:24px;overflow:visible;}
+
+  /* write-back panel */
+  .write-back{background:linear-gradient(135deg,var(--om-tint) 0%,var(--magenta-tint) 100%);
+    border:1.5px solid var(--om-line);border-radius:14px;padding:13px 15px;}
+  .wb-title{font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--om);margin-bottom:10px;}
+  .wb-items{display:flex;flex-direction:column;gap:7px;}
+  .wb-row{display:flex;align-items:center;gap:9px;}
+  .wb-dot{width:8px;height:8px;border-radius:50%;flex:none;}
+  .wb-dot.green{background:#22c55e;}
+  .wb-dot.blue{background:var(--om);}
+  .wb-dot.orange{background:var(--orange);}
+  .wb-dot.magenta{background:var(--magenta);}
+  .wb-text{font-size:12px;font-weight:600;color:var(--ink);}
+  .wb-sub{font-size:10.5px;color:var(--ink2);font-weight:500;}
+  .wb-proof{margin-top:10px;padding-top:10px;border-top:1px solid var(--om-line);
+    font-size:10.5px;color:var(--om);font-weight:700;font-style:italic;}
+
+  /* footer */
+  .foot{display:flex;justify-content:space-between;align-items:center;
+    border-top:1px solid var(--line);padding-top:14px;}
+  .foot-pov{font-size:15px;font-weight:800;color:var(--ink);}
+  .foot-pov em{color:var(--magenta);font-style:normal;}
+  .foot-note{font-size:10.5px;color:var(--gray);}
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="topbar"></div>
+  <div class="pad">
+
+    <!-- HEADER -->
+    <div>
+      <div class="eyebrow">How Cloudera AI enriches OpenMetadata · governance architecture</div>
+      <div class="headline">
+        <h1>Metadata curation has a ceiling.<br><em>Cloudera AI agents break through it.</em></h1>
+        <div class="forbadge"><span class="tmo">T</span> prepared for T&#8209;Mobile</div>
+      </div>
+    </div>
+
+    <!-- DIAGRAM -->
+    <div class="diagram">
+
+      <!-- USER -->
+      <div class="node n-user">
+        <div class="icon-wrap">
+          <!-- person icon -->
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#E20074" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="7" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/>
+          </svg>
+        </div>
+        <div class="node-label">Business<br>User</div>
+        <div class="node-sub">"Is customer_360<br>reliable for<br>this report?"</div>
+      </div>
+
+      <!-- CONN 1: user → cai -->
+      <div class="conn">
+        <div class="arrow-row">
+          <div class="arr-label" style="color:var(--ink2)">asks in<br>plain English</div>
+          <svg viewBox="0 0 100 12" style="width:100%;height:16px">
+            <line x1="2" y1="6" x2="92" y2="6" stroke="#CBD5E1" stroke-width="2"/>
+            <polygon points="90,2 100,6 90,10" fill="#CBD5E1"/>
+          </svg>
+        </div>
+        <div class="arrow-row">
+          <svg viewBox="0 0 100 12" style="width:100%;height:16px">
+            <line x1="98" y1="6" x2="8" y2="6" stroke="var(--orange)" stroke-width="2"/>
+            <polygon points="10,2 0,6 10,10" fill="var(--orange)"/>
+          </svg>
+          <div class="arr-label" style="color:var(--orange)">answer +<br>provenance</div>
+        </div>
+      </div>
+
+      <!-- CAI AGENTS -->
+      <div class="node n-cai">
+        <div class="icon-wrap">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#F96702" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+          </svg>
+        </div>
+        <div class="node-label" style="font-size:14px">Cloudera AI<br>Agents</div>
+        <div class="node-sub" style="margin-top:2px">reads context<br>runs SQL<br>writes enrichment</div>
+      </div>
+
+      <!-- CONN 2: cai ↔ om + cdp -->
+      <div class="conn" style="gap:10px;">
+        <!-- READ from OM -->
+        <div class="arrow-row">
+          <svg viewBox="0 0 100 12" style="width:100%;height:16px">
+            <line x1="98" y1="6" x2="8" y2="6" stroke="var(--om)" stroke-width="2" stroke-dasharray="5 3"/>
+            <polygon points="10,2 0,6 10,10" fill="var(--om)"/>
+          </svg>
+          <div class="arr-label" style="color:var(--om)">READ · lineage · schema<br>quality · ownership</div>
+        </div>
+
+        <div style="height:1px;background:var(--line);width:100%;"></div>
+
+        <!-- WRITE back to OM -->
+        <div class="arrow-row">
+          <div class="arr-label" style="color:var(--magenta);font-weight:800">WRITE · quality scores<br>test cases · query history</div>
+          <svg viewBox="0 0 100 12" style="width:100%;height:16px">
+            <line x1="2" y1="6" x2="92" y2="6" stroke="var(--magenta)" stroke-width="2.5"/>
+            <polygon points="90,2 100,6 90,10" fill="var(--magenta)"/>
+          </svg>
+        </div>
+
+        <div style="height:1px;background:var(--line);width:100%;"></div>
+
+        <!-- CDP query -->
+        <div class="arrow-row" style="gap:2px;">
+          <div class="arr-label" style="color:var(--orange)">runs SQL on<br>Cloudera · Knox</div>
+          <svg viewBox="0 0 100 12" style="width:100%;height:16px">
+            <line x1="2" y1="6" x2="92" y2="6" stroke="var(--orange)" stroke-width="2"/>
+            <polygon points="90,2 100,6 90,10" fill="var(--orange)"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- RIGHT COLUMN: OM + CDP + write-back panel -->
+      <div style="display:flex;flex-direction:column;gap:10px;height:100%;justify-content:center;">
+        <!-- OM node -->
+        <div class="node n-om" style="flex-direction:row;align-items:center;gap:12px;text-align:left;
+          background:var(--om-tint);border:1.5px solid var(--om-line);border-radius:14px;padding:10px 14px;">
+          <div class="icon-wrap" style="width:44px;height:44px;border-radius:12px;flex:none;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1577C2" stroke-width="1.8" stroke-linecap="round">
+              <path d="M12 2l8.66 5v10L12 22l-8.66-5V7z"/>
+            </svg>
+          </div>
+          <div>
+            <div class="node-label" style="font-size:13px;color:var(--om);">OpenMetadata</div>
+            <div class="node-sub">system of record</div>
+          </div>
+        </div>
+
+        <!-- CDP node -->
+        <div class="node n-cdp" style="flex-direction:row;align-items:center;gap:12px;text-align:left;
+          background:var(--orange-tint);border:1.5px solid var(--orange-line);border-radius:14px;padding:10px 14px;">
+          <div class="icon-wrap" style="width:44px;height:44px;border-radius:12px;flex:none;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F96702" stroke-width="1.8" stroke-linecap="round">
+              <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+              <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+            </svg>
+          </div>
+          <div>
+            <div class="node-label" style="font-size:13px;">Cloudera CDP</div>
+            <div class="node-sub">Iceberg · Impala · Kafka</div>
+          </div>
+        </div>
+
+        <!-- write-back evidence -->
+        <div class="write-back">
+          <div class="wb-title">written back automatically</div>
+          <div class="wb-items">
+            <div class="wb-row">
+              <div class="wb-dot green"></div>
+              <div><div class="wb-text">Quality test cases</div><div class="wb-sub">pass/fail per column · with history</div></div>
+            </div>
+            <div class="wb-row">
+              <div class="wb-dot blue"></div>
+              <div><div class="wb-text">Query history</div><div class="wb-sub">actual SQL · linked to the table</div></div>
+            </div>
+            <div class="wb-row">
+              <div class="wb-dot orange"></div>
+              <div><div class="wb-text">Table profile</div><div class="wb-sub">row counts · null rates · freshness</div></div>
+            </div>
+            <div class="wb-row">
+              <div class="wb-dot magenta"></div>
+              <div><div class="wb-text">Lineage edges</div><div class="wb-sub">Kafka → table → consumer chain</div></div>
+            </div>
+          </div>
+          <div class="wb-proof">Zero stewards. Happens on every query.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FOOTER -->
+    <div class="foot">
+      <div class="foot-pov">The catalog enriches itself — <em>every question is an act of governance.</em></div>
+      <div class="foot-note">Metadata curation scales to your team · Cloudera AI agents scale it to your data</div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Governance can't be curated — it has to compound</title>
+<style>
+  :root{
+    --magenta:#E20074; --magenta-dk:#A8005A; --tint:#FCEAF3; --magenta-line:#F3CFE1;
+    --cloudera:#F96702; --cloudera-tint:#FFF2E8;
+    --om:#1577C2; --om-tint:#E9F2FB;
+    --ink:#15171C; --ink-2:#4B5563; --line:#E6E9EE; --gray:#9AA2AD; --graybg:#F4F5F7;
+    --graybox:#D8DCE2;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;}
+  body{font-family:'Inter','Segoe UI',system-ui,sans-serif; background:#33363b;
+    display:flex; align-items:center; justify-content:center; padding:24px; color:var(--ink);}
+  .slide{width:1280px; height:720px; background:#fff; border-radius:14px; overflow:hidden;
+    display:flex; flex-direction:column; box-shadow:0 24px 70px rgba(0,0,0,.45);}
+  .topbar{height:6px; background:var(--magenta);}
+  .pad{padding:30px 52px 24px; flex:1; display:flex; flex-direction:column;}
+
+  .head{display:flex; justify-content:space-between; align-items:flex-start;}
+  .eyebrow{font-size:12px; letter-spacing:2.6px; font-weight:700; color:var(--magenta); text-transform:uppercase;}
+  .eyebrow span{color:var(--gray); margin:0 5px;}
+  h1{font-size:33px; font-weight:800; letter-spacing:-.7px; line-height:1.05; margin-top:9px; color:#15171C;}
+  h1 .m{color:var(--magenta);}
+  .sub{font-size:14px; color:var(--ink-2); font-weight:500; margin-top:8px; max-width:760px; line-height:1.4;}
+  .forbadge{display:flex; align-items:center; gap:8px; font-size:11px; color:var(--ink-2); font-weight:700;
+    border:1px solid var(--magenta-line); background:var(--tint); padding:7px 12px; border-radius:9px; white-space:nowrap;}
+  .tmo{width:21px;height:21px;border-radius:5px;background:var(--magenta);color:#fff;font-weight:800;font-size:13px;
+    display:flex;align-items:center;justify-content:center;line-height:1;flex:none;}
+
+  .body{flex:1; display:flex; flex-direction:column; justify-content:center; gap:20px; margin-top:6px;}
+
+  /* compare */
+  .compare{display:grid; grid-template-columns:1fr 1.15fr; gap:22px; align-items:stretch;}
+  .panel{border-radius:14px; padding:15px 18px; border:1px solid; display:flex; flex-direction:column;}
+  .ptag{font-size:10.5px; letter-spacing:1.4px; font-weight:800; text-transform:uppercase; display:flex; align-items:center; gap:7px;}
+  .panel.left{background:var(--graybg); border-color:var(--line);}
+  .panel.left .ptag{color:#6B7480;}
+  .panel.right{background:linear-gradient(180deg,#fff, var(--tint)); border-color:var(--magenta-line);}
+  .panel.right .ptag{color:var(--magenta);}
+
+  /* left — the dark estate */
+  .estate{display:flex; align-items:center; gap:16px; margin-top:13px;}
+  .grid{display:grid; grid-template-columns:repeat(8,1fr); gap:5px; flex:1;}
+  .cell{aspect-ratio:1; border-radius:4px; background:var(--graybox);}
+  .cell.on{background:var(--magenta);}
+  .estat{flex:none; width:118px; text-align:right;}
+  .estat .big{font-size:38px; font-weight:800; letter-spacing:-1.5px; color:#5B6470; line-height:1;}
+  .estat .lbl{font-size:11px; color:var(--ink-2); font-weight:600; margin-top:2px;}
+  .estat .dn{display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:800; color:#C0410E; margin-top:7px;}
+  .lcap{font-size:12px; color:#6B7480; line-height:1.4; margin-top:auto; padding-top:13px; font-weight:500;}
+
+  /* right — the compounding loop */
+  .loopwrap{display:flex; align-items:center; gap:14px; margin-top:10px; flex:1;}
+  .loop{flex:none;}
+  .node{position:relative;}
+  .rcap{font-size:12px; color:var(--ink-2); line-height:1.4; margin-top:auto; padding-top:13px; font-weight:500;}
+  .rcap b{color:var(--magenta-dk); font-weight:800;}
+  .climb{flex:1; display:flex; flex-direction:column; gap:6px;}
+  .climb .ct{font-size:11px; font-weight:700; color:var(--ink-2);}
+  .climb .cup{display:inline-flex; align-items:center; gap:5px; font-size:13px; font-weight:800; color:var(--magenta);}
+
+  /* value strip */
+  .value{display:grid; grid-template-columns:repeat(3,1fr); gap:22px;}
+  .v{padding-left:14px; border-left:3px solid var(--magenta);}
+  .v .vh{font-size:14px; font-weight:800; color:var(--ink);}
+  .v .vp{font-size:12px; color:var(--ink-2); margin-top:5px; line-height:1.45; font-weight:500;}
+
+  .foot{display:flex; justify-content:space-between; align-items:center; margin-top:auto; padding-top:16px; border-top:1px solid var(--line);}
+  .foot .pov{font-size:16px; font-weight:800; color:#15171C;}
+  .foot .pov em{color:var(--magenta); font-style:normal;}
+  .foot .brand{font-size:10px; color:#9AA2AD; text-align:right; line-height:1.6;}
+</style>
+</head>
+<body>
+  <div class="slide">
+    <div class="topbar"></div>
+    <div class="pad">
+      <div class="head">
+        <div>
+          <div class="eyebrow">OpenMetadata <span>×</span> Cloudera AI · a point of view for data governance</div>
+          <h1>Governance can't be curated. It has to <span class="m">compound.</span></h1>
+          <div class="sub">70% of the estate is dark — and no stewardship team can document its way out by hand. The fix isn't more headcount; it's making every use of data an act of governance.</div>
+        </div>
+        <div class="forbadge"><span class="tmo">T</span> prepared for T&#8209;Mobile</div>
+      </div>
+
+      <div class="body">
+      <!-- COMPARE -->
+      <div class="compare">
+        <!-- LEFT: curate by hand -->
+        <div class="panel left">
+          <div class="ptag">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7480" stroke-width="2"><path d="M12 20h9M4 20l8-16 8 16" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Curate by hand
+          </div>
+          <div class="estate">
+            <div class="grid">
+              <!-- 40 cells, 12 documented (≈30%) -->
+              <div class="cell on"></div><div class="cell"></div><div class="cell on"></div><div class="cell"></div><div class="cell"></div><div class="cell on"></div><div class="cell"></div><div class="cell"></div>
+              <div class="cell"></div><div class="cell on"></div><div class="cell"></div><div class="cell"></div><div class="cell on"></div><div class="cell"></div><div class="cell"></div><div class="cell on"></div>
+              <div class="cell"></div><div class="cell"></div><div class="cell on"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell on"></div><div class="cell"></div>
+              <div class="cell on"></div><div class="cell"></div><div class="cell"></div><div class="cell on"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+              <div class="cell"></div><div class="cell on"></div><div class="cell"></div><div class="cell"></div><div class="cell on"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+            </div>
+            <div class="estat">
+              <div class="big">70%</div>
+              <div class="lbl">undocumented</div>
+              <div class="dn">▼ drifts &amp; decays</div>
+            </div>
+          </div>
+          <div class="lcap">Stewards can't outpace the data. The catalog is stalest — and trusted least — exactly when a decision depends on it.</div>
+        </div>
+
+        <!-- RIGHT: compound with Cloudera AI -->
+        <div class="panel right">
+          <div class="ptag">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#E20074" stroke-width="2"><path d="M3 17l6-6 4 4 8-8M21 7v5M21 7h-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Compound with Cloudera AI
+          </div>
+
+          <div class="loopwrap">
+            <!-- bi-directional loop CAI <-> OpenMetadata -->
+            <svg class="loop" width="300" height="158" viewBox="0 0 300 158">
+              <defs>
+                <marker id="ar-o" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#F96702"/></marker>
+                <marker id="ar-b" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#1577C2"/></marker>
+              </defs>
+              <!-- nodes -->
+              <g>
+                <rect x="6" y="52" width="118" height="54" rx="12" fill="#FFF2E8" stroke="#F96702" stroke-width="1.6"/>
+                <text x="65" y="78" text-anchor="middle" font-size="13" font-weight="800" fill="#B84E04">Cloudera AI</text>
+                <text x="65" y="94" text-anchor="middle" font-size="10.5" font-weight="600" fill="#8A5A33">agents</text>
+              </g>
+              <g>
+                <rect x="176" y="52" width="118" height="54" rx="12" fill="#E9F2FB" stroke="#1577C2" stroke-width="1.6"/>
+                <text x="235" y="78" text-anchor="middle" font-size="13" font-weight="800" fill="#1577C2">OpenMetadata</text>
+                <text x="235" y="94" text-anchor="middle" font-size="10.5" font-weight="600" fill="#3E7BAD">system of record</text>
+              </g>
+              <!-- READ arc (OM -> CAI, top) -->
+              <path d="M176 64 C 150 30, 100 30, 124 60" fill="none" stroke="#1577C2" stroke-width="2.2" marker-end="url(#ar-b)"/>
+              <text x="150" y="26" text-anchor="middle" font-size="10.5" font-weight="800" fill="#1577C2">READ · ground the answer</text>
+              <!-- WRITE arc (CAI -> OM, bottom) -->
+              <path d="M124 96 C 150 130, 176 130, 176 98" fill="none" stroke="#F96702" stroke-width="2.2" marker-end="url(#ar-o)"/>
+              <text x="150" y="146" text-anchor="middle" font-size="10.5" font-weight="800" fill="#B84E04">WRITE · enrich the catalog</text>
+            </svg>
+
+            <div class="climb">
+              <div class="ct">lineage · quality · ownership</div>
+
+              <div class="cup">▲ coverage &amp; trust</div>
+            </div>
+          </div>
+
+          <div class="rcap">Every agent query <b>reads</b> OpenMetadata to ground the answer — then <b>writes</b> lineage, quality &amp; ownership back. The catalog gets richer with use, not staler.</div>
+        </div>
+      </div>
+
+      <!-- VALUE -->
+      <div class="value">
+        <div class="v"><div class="vh">Coverage that closes itself</div><div class="vp">The dark 70% gets documented, scored &amp; linked <em>as data is queried</em> — no steward backlog, no new headcount.</div></div>
+        <div class="v"><div class="vh">Trust travels with every answer</div><div class="vp">Lineage and a live quality score on every result, written back to OpenMetadata — provenance you can audit.</div></div>
+        <div class="v"><div class="vh">A catalog that enforces, not just describes</div><div class="vp">Agents read policy, lineage &amp; quality and act on them. OpenMetadata becomes a control plane — not a wiki.</div></div>
+      </div>
+      </div>
+
+      <div class="foot">
+        <div class="pov">Stop curating the catalog. <em>Start compounding it.</em></div>
+        <div class="brand">Cloudera AI runs the agents on your data · OpenMetadata is the system of record<br>governance that grows with every question asked</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

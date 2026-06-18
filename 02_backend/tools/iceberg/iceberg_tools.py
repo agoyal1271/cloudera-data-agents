@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 # TTL cache for list_iceberg_tables — REST catalog round-trips cost ~12s.
 # Catalog membership/schemas don't change often; 60s is a reasonable freshness window.
 _LIST_CACHE: dict[str, Any] = {"result": None, "expires_at": 0.0}
-_LIST_CACHE_TTL_SECS = float(os.getenv("ICEBERG_LIST_CACHE_TTL_SECS", "60"))
+_LIST_CACHE_TTL_SECS = float(os.getenv("ICEBERG_LIST_CACHE_TTL_SECS", "600"))
 
 
 def invalidate_iceberg_list_cache() -> None:

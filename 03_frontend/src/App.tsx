@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { LayoutDashboard, Radar, Pin, Wrench, Shield, Heart, Brain, Gavel } from 'lucide-react';
 import { AgentDashboard } from './components/AgentDashboard/AgentDashboard';
-import { SourceScout } from './components/SourceScout/SourceScout';
+import { ScoutWorkspace } from './components/SourceScout/ScoutWorkspace';
 import { PipelineBuilder } from './components/PipelineBuilder';
 import { QualityGuardian } from './components/QualityGuardian';
 import { PipelineHealer } from './components/PipelineHealer';
@@ -89,7 +89,7 @@ export default function App() {
         )}
         {/* Keep agents mounted — state persists across tab switches */}
         <div className={view === 'source_scout' ? 'h-full' : 'hidden'}>
-          <SourceScout />
+          <ScoutWorkspace />
         </div>
         <div className={view === 'pipeline_builder' ? 'h-full' : 'hidden'}>
           <PipelineBuilder />

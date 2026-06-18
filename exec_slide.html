@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>OpenMetadata is the context you don't burn in tokens</title>
+<style>
+  :root{
+    --magenta:#E20074; --tint:#FCEAF3;
+    --ink:#15171C; --ink-2:#4B5563; --line:#E6E9EE; --gray:#9AA2AD; --graybg:#F5F6F8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;}
+  body{font-family:'Inter','Segoe UI',system-ui,sans-serif; background:#33363b;
+    display:flex; align-items:center; justify-content:center; padding:24px; color:var(--ink);}
+  .slide{width:1280px; height:720px; background:#fff; border-radius:14px; overflow:hidden;
+    display:flex; flex-direction:column; box-shadow:0 24px 70px rgba(0,0,0,.45);}
+  .topbar{height:6px; background:var(--magenta);}
+  .pad{padding:38px 56px 30px; flex:1; display:flex; flex-direction:column;}
+
+  .eyebrow{font-size:13px; letter-spacing:2.8px; font-weight:700; color:var(--magenta); text-transform:uppercase;}
+  .eyebrow span{color:var(--gray); margin:0 4px;}
+  h1{font-size:36px; font-weight:800; letter-spacing:-.8px; line-height:1.08; margin-top:12px;}
+  h1 .m{color:var(--magenta);}
+
+  /* ===== visual ===== */
+  .viz{display:grid; grid-template-columns:1fr 132px 1fr; gap:0; align-items:stretch; margin-top:30px;}
+  .panel{border-radius:14px; padding:16px 18px 14px; display:flex; flex-direction:column;}
+  .panel.left{background:var(--graybg); border:1px solid var(--line);}
+  .panel.right{background:var(--tint); border:1px solid #F3CFE1;}
+  .phead{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:6px;}
+  .phead .pt{font-size:16px; font-weight:800;}
+  .panel.left .pt{color:var(--ink);}
+  .panel.right .pt{color:var(--magenta);}
+  .phead .pq{font-size:12px; color:var(--ink-2); font-style:italic;}
+  svg.map{width:100%; height:176px; display:block;}
+  .pfoot{display:flex; align-items:center; gap:14px; margin-top:12px; padding-top:12px; border-top:1px solid rgba(0,0,0,.06);}
+  .pfoot .tk{font-size:34px; font-weight:800; letter-spacing:-1.5px; line-height:1;}
+  .panel.left .tk{color:#8A92A0;}
+  .panel.right .tk{color:var(--magenta);}
+  .pfoot .tl{font-size:13px; color:var(--ink-2); font-weight:600; line-height:1.35;}
+
+  .delta{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px;}
+  .delta .arrow{font-size:24px; color:var(--gray);}
+  .delta .big{font-size:34px; font-weight:800; color:var(--magenta); letter-spacing:-1.5px; line-height:1; white-space:nowrap;}
+  .delta .lbl{font-size:11px; color:var(--ink-2); font-weight:700; text-transform:uppercase; letter-spacing:1px;}
+
+  /* ===== value band ===== */
+  .value{display:grid; grid-template-columns:repeat(3,1fr); margin-top:30px;}
+  .v{padding:0 30px; border-left:1px solid var(--line);}
+  .v:first-child{border-left:none; padding-left:0;}
+  .v .n{font-size:32px; font-weight:800; letter-spacing:-1px; color:var(--magenta); line-height:1;}
+  .v .n small{font-size:18px; color:var(--ink);}
+  .v .h{font-size:14.5px; font-weight:800; color:var(--ink); margin-top:8px;}
+  .v .p{font-size:12.5px; color:var(--ink-2); margin-top:5px; line-height:1.45;}
+
+  /* ===== footer ===== */
+  .foot{display:flex; justify-content:space-between; align-items:flex-end; margin-top:auto; padding-top:22px;}
+  .foot .pov{font-size:16px; font-weight:800;}
+  .foot .pov em{color:var(--magenta); font-style:normal;}
+  .foot .brand{font-size:11px; color:#9AA2AD; text-align:right; line-height:1.6;}
+</style>
+</head>
+<body>
+  <div class="slide">
+    <div class="topbar"></div>
+    <div class="pad">
+      <div class="eyebrow">Cloudera Agentic AI <span>×</span> OpenMetadata</div>
+      <h1>OpenMetadata is the context you <span class="m">don't burn in tokens.</span></h1>
+
+      <!-- VISUAL -->
+      <div class="viz">
+        <div class="panel left">
+          <div class="phead"><div class="pt">Without context</div><div class="pq">"what breaks if I change this?"</div></div>
+          <svg class="map" viewBox="0 0 480 230" preserveAspectRatio="xMidYMid meet">
+            <polyline points="40,40 165,120 175,30 300,130 55,128 305,45 200,205 425,120 415,35 325,210 80,205 430,200"
+              fill="none" stroke="#B4BBC4" stroke-width="2.5" stroke-dasharray="2 6" stroke-linejoin="round"/>
+            <g fill="#8C94A0">
+              <circle cx="40" cy="40" r="9"/><circle cx="175" cy="30" r="9"/><circle cx="305" cy="45" r="9"/><circle cx="415" cy="35" r="9"/>
+              <circle cx="55" cy="128" r="9"/><circle cx="165" cy="120" r="9"/><circle cx="300" cy="130" r="9"/><circle cx="425" cy="120" r="9"/>
+              <circle cx="80" cy="205" r="9"/><circle cx="200" cy="205" r="9"/><circle cx="325" cy="210" r="9"/><circle cx="430" cy="200" r="9"/>
+            </g>
+            <circle cx="40" cy="40" r="9" fill="#15171C"/>
+          </svg>
+          <div class="pfoot"><div class="tk">~40K</div><div class="tl">tokens —<br>crawls the whole estate</div></div>
+        </div>
+
+        <div class="delta">
+          <div class="arrow">→</div>
+          <div class="big">−90%</div>
+          <div class="lbl">tokens</div>
+        </div>
+
+        <div class="panel right">
+          <div class="phead"><div class="pt">Grounded in OpenMetadata</div><div class="pq">same question</div></div>
+          <svg class="map" viewBox="0 0 480 230" preserveAspectRatio="xMidYMid meet">
+            <g stroke="#F0C3DA" stroke-width="1.5" fill="none">
+              <line x1="175" y1="30" x2="305" y2="45"/><line x1="305" y1="45" x2="425" y2="120"/>
+              <line x1="55" y1="128" x2="165" y2="120"/><line x1="300" y1="130" x2="325" y2="210"/>
+              <line x1="200" y1="205" x2="325" y2="210"/><line x1="425" y1="120" x2="430" y2="200"/>
+            </g>
+            <polyline points="40,40 165,120 300,130 430,200" fill="none" stroke="#E20074" stroke-width="4.5" stroke-linejoin="round" stroke-linecap="round"/>
+            <g fill="#EBC4D8">
+              <circle cx="175" cy="30" r="8"/><circle cx="305" cy="45" r="8"/><circle cx="415" cy="35" r="8"/>
+              <circle cx="55" cy="128" r="8"/><circle cx="425" cy="120" r="8"/>
+              <circle cx="80" cy="205" r="8"/><circle cx="200" cy="205" r="8"/><circle cx="325" cy="210" r="8"/>
+            </g>
+            <g fill="#E20074"><circle cx="165" cy="120" r="9"/><circle cx="300" cy="130" r="9"/></g>
+            <circle cx="40" cy="40" r="9" fill="#15171C"/>
+            <circle cx="430" cy="200" r="13" fill="#E20074"/>
+            <text x="430" y="205" font-size="14" fill="#fff" text-anchor="middle" font-weight="700">✓</text>
+          </svg>
+          <div class="pfoot"><div class="tk">~4K</div><div class="tl">tokens —<br>follows the lineage to the answer</div></div>
+        </div>
+      </div>
+
+      <!-- VALUE -->
+      <div class="value">
+        <div class="v"><div class="n">~90<small>%</small></div><div class="h">Lower cost to run agents</div><div class="p">Grounding cuts the tokens every task burns — and the saving compounds as you scale to more agents.*</div></div>
+        <div class="v"><div class="n">&#8646;</div><div class="h">Bi-directional by design</div><div class="p">Agents write lineage, quality &amp; docs back to OpenMetadata; the richer catalog grounds the next agent. Both sides get smarter.</div></div>
+        <div class="v"><div class="n">100<small>%</small></div><div class="h">Answers carry lineage + quality</div><div class="p">Trust travels with every result — less risk, faster executive sign-off.</div></div>
+      </div>
+
+      <!-- FOOTER -->
+      <div class="foot">
+        <div class="pov">The metadata you enrich today is the <em>token you don't burn tomorrow.</em></div>
+        <div class="brand">Cloudera AI runs the agents on your data · open Iceberg, any engine<br>*figures illustrative — fit to account volumes</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

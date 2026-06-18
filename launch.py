@@ -22,21 +22,35 @@ APP_PORT = int(os.getenv("CDSW_APP_PORT", "8000"))
 
 def run_backend():
     env = {**os.environ, "PYTHONPATH": BACKEND_DIR}
-    cmd = [PYTHON, "-m", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", str(APP_PORT), "--reload"]
+    workers = int(os.getenv("UVICORN_WORKERS", "2")) if IS_CLOUDERA else 1
+    cmd = [
+        PYTHON, "-m", "uvicorn", "app:app",
+        "--host", "0.0.0.0",
+        "--port", str(APP_PORT),
+        "--workers", str(workers),
+        "--log-level", "info",
+    ]
+    # --reload only in local dev (incompatible with multiple workers)
+    if not IS_CLOUDERA:
+        cmd.append("--reload")
+    print(f"Starting uvicorn on port {APP_PORT} with {workers} worker(s)")
     subprocess.run(cmd, cwd=BACKEND_DIR, env=env)
 
 
 def run_frontend():
     if IS_CLOUDERA:
-        # On CAI, build and serve via FastAPI static files
         dist = os.path.join(FRONTEND_DIR, "dist")
         if not os.path.isdir(dist):
             print("Building frontend for Cloudera AI...")
-            subprocess.run(["npm", "run", "build"], cwd=FRONTEND_DIR, check=True)
-        print(f"Frontend built — served by FastAPI on port {APP_PORT}")
+            npm = os.getenv("NPM_BIN", "npm")
+            result = subprocess.run([npm, "run", "build"], cwd=FRONTEND_DIR)
+            if result.returncode != 0:
+                print("WARNING: npm build failed — frontend may not be available. Backend API still runs.")
+        else:
+            print("Frontend dist/ already built — skipping npm build")
+        print(f"Frontend served by FastAPI on port {APP_PORT}")
     else:
-        # Local dev: run Vite dev server
-        time.sleep(1.5)  # let backend start first
+        time.sleep(1.5)
         subprocess.run(["npm", "run", "dev"], cwd=FRONTEND_DIR)
 
 

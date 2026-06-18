@@ -47,6 +47,7 @@ async def get_lineage(asset: str, asset_type: str = "table"):
         "entity":     result["entity"],
         "upstream":   result["upstream"],
         "downstream": result["downstream"],
+        "graph":      result.get("graph", {"nodes": [], "edges": []}),
         "edge_count": result.get("edge_count", len(result.get("edges", []))),
     }
 

@@ -12,12 +12,12 @@ export default {
           700: '#1e3a55',  // border / divider
           600: '#2a4f72',  // muted border hover
         },
-        // Cloudera primary action blue — signature brand color
+        // Cloudera orange — signature brand color
         cloudera: {
-          DEFAULT: '#0088CC',
-          hover:   '#0099DD',
-          muted:   '#0066AA',
-          faint:   '#003355',
+          DEFAULT: '#F96702',
+          hover:   '#FF7D1A',
+          muted:   '#C24F00',
+          faint:   '#2A1404',
         },
         // AI Agent Platform Theme — Premium Enterprise Palette
         agent: {
@@ -31,10 +31,12 @@ export default {
         },
       },
       fontSize: {
-        // Enforce 12px minimum for readability in enterprise UI
-        'xs':  ['0.75rem',  { lineHeight: '1.125rem' }],  // 12px — minimum body text
-        'sm':  ['0.8125rem',{ lineHeight: '1.25rem'  }],  // 13px
-        'base':['0.875rem', { lineHeight: '1.375rem' }],  // 14px
+        // iOS-like reading scale — 14px floor, 16px body, generous line-height
+        'xs':  ['0.875rem',  { lineHeight: '1.375rem' }],  // 14px — small labels / secondary
+        'sm':  ['1rem',      { lineHeight: '1.625rem' }],  // 16px — primary body / chat
+        'base':['1.125rem',  { lineHeight: '1.75rem'  }],  // 18px — emphasis / headings
+        'lg':  ['1.3125rem', { lineHeight: '1.875rem' }],  // 21px
+        'xl':  ['1.5rem',    { lineHeight: '2rem'     }],  // 24px
       },
     },
   },

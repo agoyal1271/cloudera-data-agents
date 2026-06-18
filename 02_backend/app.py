@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from routers import agents, health, nl_to_code, registry, knox, pipeline, openmetadata
+from routers import agents, health, nl_to_code, registry, knox, pipeline, openmetadata, scout_chat, quality
 from middleware.jwt_identity import JWTIdentityMiddleware
 
 DEBUG_LOG = "/tmp/cloudera_agents_debug.log"
@@ -45,6 +45,24 @@ async def _knox_refresh_loop():
             _log.warning(f"[knox_loop] refresh check failed: {exc}")
 
 
+async def _llm_keepwarm_loop():
+    """
+    Keeps the local LLM loaded so the first Source Scout query isn't cold.
+    Pings once at boot, then every 240 s — under Ollama's default 300 s idle-unload.
+    Cheap and best-effort: failures (model server down) are swallowed.
+    """
+    import asyncio
+    from routers.scout_chat import _classify
+
+    _log = logging.getLogger(__name__)
+    while True:
+        try:
+            await _classify("ping", None)
+        except Exception as exc:
+            _log.debug(f"[llm_warm] ping failed: {exc}")
+        await asyncio.sleep(240)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     import asyncio
@@ -57,6 +75,10 @@ async def lifespan(app: FastAPI):
     if KNOX_LOGIN_URL:
         knox_task = asyncio.create_task(_knox_refresh_loop())
         _log.info("[startup] Knox JWT auto-refresh loop started (checks every 60 s)")
+
+    # ── LLM keep-warm (avoid cold-model latency on the first query) ──────────
+    llm_task = asyncio.create_task(_llm_keepwarm_loop())
+    _log.info("[startup] LLM keep-warm loop started (pings every 240 s)")
 
     # ── Schema Registry auto-index ───────────────────────────────────────────
     from config import SCHEMA_REGISTRY_URL
@@ -91,6 +113,7 @@ async def lifespan(app: FastAPI):
 
     if knox_task:
         knox_task.cancel()
+    llm_task.cancel()
 
 
 app = FastAPI(title="Cloudera AI Agents", version="1.0.0", lifespan=lifespan)
@@ -110,6 +133,8 @@ app.include_router(registry.router)
 app.include_router(knox.router)
 app.include_router(pipeline.router)
 app.include_router(openmetadata.router)
+app.include_router(scout_chat.router)
+app.include_router(quality.router)
 
 # Serve frontend build if it exists
 FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "..", "03_frontend", "dist")

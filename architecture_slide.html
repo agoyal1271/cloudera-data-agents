@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>How it works — Cloudera AI Agents × OpenMetadata</title>
+<style>
+  :root{
+    --cloudera:#F96702; --cloudera-dk:#B84E04; --cloudera-tint:#FFF2E8; --cloudera-line:#FAD9BF;
+    --magenta:#E20074; --magenta-tint:#FCEAF3; --magenta-line:#F3CFE1;
+    --om:#1577C2; --om-tint:#E9F2FB; --om-line:#C5DDF2;
+    --ink:#15171C; --ink-2:#5B6470; --line:#E4E8EE; --gray:#9AA2AD;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;}
+  body{font-family:'Inter','Segoe UI',system-ui,sans-serif; background:#33363b;
+    display:flex; align-items:center; justify-content:center; padding:24px; color:var(--ink);}
+  .slide{width:1280px; height:720px; background:#fff; border-radius:14px; overflow:hidden;
+    display:flex; flex-direction:column; box-shadow:0 24px 70px rgba(0,0,0,.45);}
+  .topbar{height:6px; background:var(--cloudera);}
+  .pad{padding:30px 52px 24px; flex:1; display:flex; flex-direction:column;}
+
+  /* header */
+  .head{display:flex; justify-content:space-between; align-items:flex-start;}
+  .eyebrow{font-size:12.5px; letter-spacing:2.6px; font-weight:700; color:var(--cloudera); text-transform:uppercase;}
+  .eyebrow span{color:var(--gray); margin:0 5px;}
+  h1{font-size:29px; font-weight:800; letter-spacing:-.6px; line-height:1.08; margin-top:9px;}
+  h1 .c{color:var(--cloudera);} h1 .o{color:var(--om);}
+  .forbadge{display:flex; align-items:center; gap:8px; font-size:11px; color:var(--ink-2); font-weight:700;
+    border:1px solid var(--magenta-line); background:var(--magenta-tint); padding:7px 12px; border-radius:9px; white-space:nowrap;}
+
+  /* T-Mobile tile (no external logo) */
+  .tmo{width:22px;height:22px;border-radius:5px;background:var(--magenta);color:#fff;font-weight:800;font-size:14px;
+    display:flex;align-items:center;justify-content:center;line-height:1;flex:none;}
+
+  /* diagram centered in available space */
+  .diagram{flex:1; display:flex; flex-direction:column; justify-content:center;}
+
+  /* top row */
+  .row{display:flex; align-items:stretch;}
+  .box{border-radius:13px; padding:16px 18px; background:#fff; display:flex; flex-direction:column; justify-content:center;}
+  .bhead{display:flex; align-items:center; gap:9px;}
+  .bhead img{height:21px; width:21px; object-fit:contain;}
+  .bhead .glyph{height:22px;width:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex:none;}
+  .btitle{font-size:15.5px; font-weight:800;}
+  .bsub{font-size:11px; color:var(--ink-2); font-weight:600; margin-top:6px; line-height:1.4;}
+  .chips{display:flex; flex-wrap:wrap; gap:6px; margin-top:12px;}
+  .chip{font-size:11px; font-weight:700; padding:4px 9px; border-radius:6px; white-space:nowrap;}
+
+  .b-user{flex:0 0 220px; border:1.5px solid var(--magenta-line); background:var(--magenta-tint);}
+  .b-user .btitle{color:var(--magenta);}
+  .b-cdai{flex:1; border:2px solid var(--cloudera); background:#fff; box-shadow:0 12px 30px rgba(249,103,2,.13);}
+  .b-cdai .btitle{color:var(--cloudera-dk);}
+  .b-cdai .chip{background:var(--cloudera-tint); color:var(--cloudera-dk); border:1px solid var(--cloudera-line);}
+  .b-om{flex:0 0 282px; border:1.5px solid var(--om-line); background:var(--om-tint);}
+  .b-om .btitle{color:var(--om);}
+  .b-om .glyph{background:var(--om);}
+  .b-om .chip{background:#fff; color:var(--om); border:1px solid var(--om-line);}
+
+  .conn{flex:0 0 86px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;}
+  .conn .cl{font-size:10px; font-weight:700; color:var(--ink-2); text-align:center; line-height:1.35;}
+  .conn.bi{flex:0 0 134px;}
+  .conn.bi .cl{color:var(--om); white-space:nowrap;}
+
+  /* knox */
+  .knox{display:flex; flex-direction:column; align-items:center; gap:5px; margin:16px 0;}
+  .knox .kl{font-size:10.5px; font-weight:700; color:var(--ink-2);}
+  .knox .kl b{color:var(--cloudera-dk);}
+
+  /* foundation */
+  .b-cdp{border:2px solid var(--cloudera); background:var(--cloudera-tint); border-radius:13px; padding:15px 20px;}
+  .cdp-head{display:flex; align-items:center; gap:9px; margin-bottom:13px;}
+  .cdp-head img{height:20px;} .cdp-head .ct{font-size:15.5px; font-weight:800; color:var(--cloudera-dk);}
+  .cdp-head .cs{font-size:11px; color:var(--ink-2); font-weight:600; margin-left:4px;}
+  .techrow{display:flex; align-items:stretch; gap:12px;}
+  .grp{display:flex; gap:9px; flex:1; align-items:center;}
+  .grp .gl{font-size:9.5px; letter-spacing:1px; text-transform:uppercase; color:var(--cloudera-dk); font-weight:800; opacity:.65; flex:none; width:16px;
+    writing-mode:vertical-rl; transform:rotate(180deg); text-align:center;}
+  .tech{flex:1; display:flex; align-items:center; gap:9px; background:#fff; border:1px solid var(--cloudera-line);
+    border-radius:9px; padding:10px 12px;}
+  .tech img{height:22px; width:22px; object-fit:contain;}
+  .tech .tn{font-size:13px; font-weight:700; color:var(--ink);}
+  .vsep{width:1px; background:var(--cloudera-line);}
+
+  /* flow legend */
+  .flow{display:flex; padding-top:15px; border-top:1px solid var(--line);}
+  .step{flex:1; display:flex; gap:9px; align-items:flex-start; padding-right:14px;}
+  .step .num{flex:none; width:21px;height:21px;border-radius:50%;background:var(--cloudera);color:#fff;
+    font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;}
+  .step .st{font-size:11px; color:var(--ink); font-weight:700; line-height:1.3;}
+  .step .st small{display:block; color:var(--ink-2); font-weight:500; font-size:10px; margin-top:2px;}
+</style>
+</head>
+<body>
+  <div class="slide">
+    <div class="topbar"></div>
+    <div class="pad">
+      <!-- HEADER -->
+      <div class="head">
+        <div>
+          <div class="eyebrow">Cloudera AI <span>×</span> OpenMetadata</div>
+          <h1>Agents that <span class="c">run on your data</span> and <span class="o">learn from your catalog.</span></h1>
+        </div>
+        <div class="forbadge"><span class="tmo">T</span> prepared for T&#8209;Mobile</div>
+      </div>
+
+      <!-- DIAGRAM (vertically centered) -->
+      <div class="diagram">
+        <div class="row">
+          <div class="box b-user">
+            <div class="bhead"><span class="tmo">T</span><span class="btitle">Business user</span></div>
+            <div class="bsub">asks in plain English — gets a grounded, trusted answer</div>
+          </div>
+
+          <div class="conn"><div class="cl">ask →<br>← answer</div></div>
+
+          <div class="box b-cdai">
+            <div class="bhead"><img src="https://cdn.simpleicons.org/cloudera/F96702" alt="Cloudera"/><span class="btitle">Cloudera AI · Agents</span></div>
+            <div class="bsub">conversational orchestrator + LLM, running on Cloudera AI Inference</div>
+            <div class="chips"><span class="chip">Discover</span><span class="chip">Lineage</span><span class="chip">Quality</span><span class="chip">Govern</span></div>
+          </div>
+
+          <div class="conn bi">
+            <div class="cl">read context →</div>
+            <svg width="122" height="30" viewBox="0 0 122 30">
+              <defs>
+                <marker id="mr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#1577C2"/></marker>
+                <marker id="ml" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#1577C2"/></marker>
+              </defs>
+              <line x1="6" y1="10" x2="116" y2="10" stroke="#1577C2" stroke-width="2.5" marker-end="url(#mr)"/>
+              <line x1="116" y1="22" x2="6" y2="22" stroke="#1577C2" stroke-width="2.5" marker-end="url(#ml)"/>
+            </svg>
+            <div class="cl">← write enrichment</div>
+          </div>
+
+          <div class="box b-om">
+            <div class="bhead"><span class="glyph"><svg width="13" height="13" viewBox="0 0 24 24"><path d="M12 2l8.66 5v10L12 22l-8.66-5V7z" fill="#fff"/></svg></span><span class="btitle">OpenMetadata</span></div>
+            <div class="bsub">the context layer — what agents know</div>
+            <div class="chips"><span class="chip">Lineage</span><span class="chip">Business rules</span><span class="chip">Quality</span><span class="chip">Glossary</span><span class="chip">Owners</span></div>
+          </div>
+        </div>
+
+        <!-- KNOX -->
+        <div class="knox">
+          <svg width="16" height="24" viewBox="0 0 16 24"><defs><marker id="kd" markerWidth="10" markerHeight="10" refX="4" refY="8" orient="auto"><path d="M0,0 L8,0 L4,8 Z" fill="#B84E04"/></marker></defs>
+            <line x1="8" y1="2" x2="8" y2="18" stroke="#F0A86A" stroke-width="2" stroke-dasharray="3 3" marker-end="url(#kd)"/></svg>
+          <div class="kl">queries run via <b>Apache Knox</b> · secure, no data movement</div>
+        </div>
+
+        <!-- FOUNDATION -->
+        <div class="b-cdp">
+          <div class="cdp-head"><img src="https://cdn.simpleicons.org/cloudera/F96702" alt="Cloudera"/><span class="ct">Cloudera Data Platform</span><span class="cs">agents run where the data already lives</span></div>
+          <div class="techrow">
+            <div class="grp">
+              <div class="gl">Data</div>
+              <div class="tech"><img src="https://cdn.simpleicons.org/apache/D22128" alt=""/><span class="tn">Iceberg</span></div>
+              <div class="tech"><img src="https://cdn.simpleicons.org/apachekafka/231F20" alt=""/><span class="tn">Kafka</span></div>
+              <div class="tech"><img src="https://cdn.simpleicons.org/apache/D22128" alt=""/><span class="tn">Ozone</span></div>
+            </div>
+            <div class="vsep"></div>
+            <div class="grp">
+              <div class="gl">Engines</div>
+              <div class="tech"><img src="https://cdn.simpleicons.org/apache/D22128" alt=""/><span class="tn">Impala</span></div>
+              <div class="tech"><img src="https://cdn.simpleicons.org/trino/DD00A1" alt=""/><span class="tn">Trino</span></div>
+              <div class="tech"><img src="https://cdn.simpleicons.org/apachespark/E25A1C" alt=""/><span class="tn">Spark</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FLOW -->
+      <div class="flow">
+        <div class="step"><span class="num">1</span><span class="st">Ask<small>plain-English question</small></span></div>
+        <div class="step"><span class="num">2</span><span class="st">Ground<small>read lineage, rules &amp; quality from OpenMetadata</small></span></div>
+        <div class="step"><span class="num">3</span><span class="st">Run<small>query data on CDP via Knox — no movement</small></span></div>
+        <div class="step"><span class="num">4</span><span class="st">Enrich<small>write lineage, docs &amp; quality back to the catalog</small></span></div>
+        <div class="step"><span class="num" style="background:#15171C">↺</span><span class="st">Compound<small>each cycle makes the next agent smarter</small></span></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

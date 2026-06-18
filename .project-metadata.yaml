@@ -1,34 +1,56 @@
 name: Cloudera AI Agents
-description: Six autonomous AI agents for self-discovering, self-building, self-healing, and self-governing data pipelines on Cloudera Data Platform.
+description: >
+  Agentic AI platform — Source Scout, Quality Guardian, and OpenMetadata enrichment
+  running on Cloudera Data Platform. Agents discover data, trace lineage, run SQL on
+  Cloudera, and write quality scores + query history back to OpenMetadata automatically.
 author: Cloudera Field Engineering
 spec_version: "0.8"
 
-tasks:
-  - name: Install Dependencies
-    type: Session
-    script: 01_install/install.py
-    short_summary: Install Python and Node.js dependencies
-    kernel: python3
+build: cdsw-build.sh
 
+tasks:
   - name: Cloudera AI Agents
     type: Application
     script: launch.py
     short_summary: Launch the multi-agent platform (FastAPI + React)
     kernel: python3
+    cpu: 2
+    memory: 8
     environment_variables:
-      CLOUDERA_AI_URL: ""           # Set to your CAI inference endpoint
-      CLOUDERA_AI_MODEL: ""         # e.g. meta-llama/Meta-Llama-3-8B-Instruct
-      CLOUDERA_AI_KEY: ""           # Your CAI API key
-      KAFKA_BOOTSTRAP_SERVERS: ""   # e.g. broker1:9092,broker2:9092
+
+      # ── LLM — Cloudera AI Inference ─────────────────────────────────────────
+      CLOUDERA_AI_URL: ""           # CML model serving endpoint /v1
+      CLOUDERA_AI_MODEL: ""         # e.g. meta-llama/Meta-Llama-3.1-8B-Instruct
+      CLOUDERA_AI_KEY: ""           # API key from CML Model Serving
+
+      # ── OpenMetadata ─────────────────────────────────────────────────────────
+      OPENMETADATA_URL: ""          # http://<om-host>:8585/api — must be reachable from CML
+      OPENMETADATA_USER: "admin"
+      OPENMETADATA_PASSWORD: ""
+
+      # ── Knox / Impala ─────────────────────────────────────────────────────────
+      KNOX_LOGIN_URL: ""            # https://<cdp-host>:8443/gateway/cdp-proxy-api
+      KNOX_USERNAME: ""
+      KNOX_PASSWORD: ""
+
+      # ── Iceberg REST catalog ──────────────────────────────────────────────────
+      ICEBERG_CATALOG_TYPE: "rest"
+      ICEBERG_CATALOG_URI: ""       # https://<cdp-host>:8443/gateway/.../iceberg-rest
+      ICEBERG_WAREHOUSE: ""         # s3a://your-bucket/warehouse
+
+      # ── Kafka / Schema Registry ───────────────────────────────────────────────
+      KAFKA_BOOTSTRAP_SERVERS: ""
       KAFKA_SECURITY_PROTOCOL: "SASL_SSL"
       KAFKA_SASL_MECHANISM: "PLAIN"
       KAFKA_USERNAME: ""
       KAFKA_PASSWORD: ""
-      ICEBERG_CATALOG_TYPE: "hive"
-      ICEBERG_CATALOG_URI: ""       # HMS URI e.g. thrift://hive-metastore:9083
-      ICEBERG_WAREHOUSE: ""         # e.g. s3a://your-bucket/warehouse
-      OZONE_ENDPOINT: ""            # e.g. http://ozone-s3g:9878
+      SCHEMA_REGISTRY_URL: ""
+
+      # ── Ozone S3 ──────────────────────────────────────────────────────────────
+      OZONE_ENDPOINT: ""
       OZONE_ACCESS_KEY: ""
       OZONE_SECRET_KEY: ""
-      HDFS_WEBHDFS_URL: ""          # e.g. http://namenode:9870
-      FLINK_REST_URL: ""            # e.g. http://flink-jobmanager:8081
+
+      # ── Tuning ────────────────────────────────────────────────────────────────
+      UVICORN_WORKERS: "2"
+      ICEBERG_LIST_CACHE_TTL_SECS: "600"

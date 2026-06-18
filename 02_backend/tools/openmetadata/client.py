@@ -214,35 +214,79 @@ def get_lineage_by_name(asset_name: str, asset_type: str = "table") -> Optional[
     if not raw:
         return {"entity": entity, "upstream": [], "downstream": [], "edges": [], "edge_count": 0}
 
-    # OM 1.5+ uses upstreamEdges / downstreamEdges (edge IDs are plain strings, not objects)
+    # OM 1.5+ returns the FULL multi-hop graph as upstreamEdges / downstreamEdges.
+    # We BFS out from this entity so every node gets a hop-distance ("depth") and a
+    # side (up/cur/down). The UI lays each depth out in its own column, so a chain
+    # like  kafka topic → table → customer_360 → dashboard  renders as a proper
+    # left-to-right flow instead of collapsing every ancestor onto one column.
     nodes_by_id = {n["id"]: n for n in raw.get("nodes", [])}
+    eid = entity.get("id")
+    if eid and eid not in nodes_by_id:
+        nodes_by_id[eid] = entity
+
+    def _eid(v):
+        return v.get("id") if isinstance(v, dict) else v
 
     upstream_edges   = raw.get("upstreamEdges",   [])
     downstream_edges = raw.get("downstreamEdges", [])
 
-    upstream = []
-    for edge in upstream_edges:
-        from_id = edge.get("fromEntity")
-        if isinstance(from_id, dict):
-            from_id = from_id.get("id")
-        if from_id and from_id in nodes_by_id:
-            upstream.append(_slim_node(nodes_by_id[from_id]))
+    depth = {eid: 0}
+    side  = {eid: "cur"}
 
-    downstream = []
-    for edge in downstream_edges:
-        to_id = edge.get("toEntity")
-        if isinstance(to_id, dict):
-            to_id = to_id.get("id")
-        if to_id and to_id in nodes_by_id:
-            downstream.append(_slim_node(nodes_by_id[to_id]))
+    # walk upstream: edge X → node  ⇒  X is one hop further upstream (negative depth)
+    frontier, d = [eid], 0
+    while frontier:
+        d += 1
+        nxt = []
+        for node_id in frontier:
+            for e in upstream_edges:
+                if _eid(e.get("toEntity")) == node_id:
+                    f = _eid(e.get("fromEntity"))
+                    if f in nodes_by_id and f not in depth:
+                        depth[f], side[f] = -d, "up"
+                        nxt.append(f)
+        frontier = nxt
 
-    all_edges = upstream_edges + downstream_edges
+    # walk downstream: edge node → Y  ⇒  Y is one hop further downstream (positive depth)
+    frontier, d = [eid], 0
+    while frontier:
+        d += 1
+        nxt = []
+        for node_id in frontier:
+            for e in downstream_edges:
+                if _eid(e.get("fromEntity")) == node_id:
+                    t = _eid(e.get("toEntity"))
+                    if t in nodes_by_id and t not in depth:
+                        depth[t], side[t] = d, "down"
+                        nxt.append(t)
+        frontier = nxt
+
+    graph_nodes = []
+    for nid, dep in depth.items():
+        n = _slim_node(nodes_by_id[nid])
+        n["depth"], n["side"] = dep, side[nid]
+        graph_nodes.append(n)
+    graph_nodes.sort(key=lambda n: (n["depth"], n["name"]))
+
+    seen_e = set()
+    graph_edges = []
+    for e in upstream_edges + downstream_edges:
+        f, t = _eid(e.get("fromEntity")), _eid(e.get("toEntity"))
+        if f in depth and t in depth and (f, t) not in seen_e:
+            seen_e.add((f, t))
+            graph_edges.append({"from": f, "to": t})
+
+    # direct (1-hop) neighbours, for summaries / chip counts
+    upstream   = [n for n in graph_nodes if n["depth"] == -1]
+    downstream = [n for n in graph_nodes if n["depth"] == 1]
+
     return {
         "entity":     entity,
         "upstream":   upstream,
         "downstream": downstream,
-        "edges":      all_edges,
-        "edge_count": len(all_edges),
+        "graph":      {"nodes": graph_nodes, "edges": graph_edges},
+        "edges":      upstream_edges + downstream_edges,
+        "edge_count": len(graph_edges),
         "raw":        raw,
     }
 
@@ -327,6 +371,51 @@ def register_table(table_name: str, fields: list[dict], description: str = "",
         "databaseSchema": {"fullyQualifiedName": f"{service_name}.{db}.default"},
     }
     return _post("/v1/tables", body)
+
+
+def record_query_and_usage(asset_name: str, sql: str, duration_ms: Optional[float] = None,
+                           default_service: str = "cdp_hive") -> bool:
+    """Enrich OpenMetadata with how an asset is being USED:
+      1. append the executed SQL to the table's Queries tab  (POST /v1/queries)
+      2. bump the table's usage count for today               (POST /v1/usage/table/{id})
+    OM then shows query history + a popularity rank on the asset page. Best-effort.
+    """
+    try:
+        import time as _t, datetime as _dt, requests
+        entity = find_table_by_name(asset_name)
+        if not entity or not entity.get("id"):
+            logger.info(f"[OM] usage write skipped — {asset_name} not in OpenMetadata")
+            return False
+        tid = entity["id"]
+        svc = entity.get("service")
+        if isinstance(svc, dict):
+            service = svc.get("name") or svc.get("fullyQualifiedName") or default_service
+        elif isinstance(svc, str) and svc:
+            service = svc
+        else:
+            service = default_service
+
+        q_body = {
+            "query": sql,
+            "service": service,
+            "queryUsedIn": [{"id": tid, "type": "table"}],
+            "queryDate": int(_t.time() * 1000),
+        }
+        if duration_ms is not None:
+            q_body["duration"] = float(duration_ms)
+        rq = requests.post(f"{OM_URL}/v1/queries", headers=_headers(), json=q_body, timeout=15)
+        if rq.status_code not in (200, 201, 409):   # 409 = identical query already recorded
+            logger.warning(f"[OM] query record: {rq.status_code} {rq.text[:160]}")
+
+        today = _dt.date.today().isoformat()
+        ru = requests.post(f"{OM_URL}/v1/usage/table/{tid}", headers=_headers(),
+                           json={"date": today, "count": 1}, timeout=15)
+        if ru.status_code not in (200, 201):
+            logger.warning(f"[OM] usage bump: {ru.status_code} {ru.text[:160]}")
+        return rq.status_code in (200, 201, 409) or ru.status_code in (200, 201)
+    except Exception as e:
+        logger.warning(f"[OM] query/usage write failed: {e}")
+        return False
 
 
 def register_topic(topic_name: str, schema_fields: list[dict],

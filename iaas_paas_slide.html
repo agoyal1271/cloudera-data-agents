@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>IaaS vs CDP PaaS — the business case</title>
+<style>
+  :root{
+    --cloudera:#F96702; --cloudera-dk:#B84E04; --cloudera-tint:#FFF2E8; --cloudera-line:#F8D3B5;
+    --magenta:#E20074; --magenta-tint:#FCEAF3; --magenta-line:#F3CFE1;
+    --navy:#1B1F3B; --ink:#15171C; --ink-2:#5B6470; --line:#E4E8EE;
+    --gray:#8B93A0; --gray-bg:#EEF0F3; --gray-box:#D3D8DF; --gray-line:#D6DAE1;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;}
+  body{font-family:'Inter','Segoe UI',system-ui,sans-serif; background:#33363b;
+    display:flex; align-items:center; justify-content:center; padding:24px; color:var(--ink);}
+  .slide{width:1280px; height:720px; background:#fff; border-radius:14px; overflow:hidden;
+    display:flex; flex-direction:column; box-shadow:0 24px 70px rgba(0,0,0,.45);}
+  .topbar{height:6px; background:var(--cloudera);}
+  .pad{padding:28px 50px 22px; flex:1; display:flex; flex-direction:column;}
+
+  .head{display:flex; justify-content:space-between; align-items:flex-start;}
+  .eyebrow{font-size:12px; letter-spacing:2.6px; font-weight:700; color:var(--cloudera); text-transform:uppercase;}
+  h1{font-size:30px; font-weight:800; letter-spacing:-.6px; line-height:1.06; margin-top:8px; color:var(--navy);}
+  h1 .c{color:var(--cloudera);}
+  .forbadge{display:flex; align-items:center; gap:8px; font-size:11px; color:var(--ink-2); font-weight:700;
+    border:1px solid var(--magenta-line); background:var(--magenta-tint); padding:7px 12px; border-radius:9px; white-space:nowrap;}
+  .tmo{width:21px;height:21px;border-radius:5px;background:var(--magenta);color:#fff;font-weight:800;font-size:13px;
+    display:flex;align-items:center;justify-content:center;line-height:1;flex:none;}
+
+  .body{flex:1; display:flex; flex-direction:column; justify-content:center; gap:22px;}
+
+  /* compare */
+  .compare{display:grid; grid-template-columns:1fr 1fr; gap:24px;}
+  .panel{border-radius:14px; padding:14px 18px 15px; border:1px solid;}
+  .panel .ph{display:flex; align-items:baseline; gap:9px; margin-bottom:11px;}
+  .panel .pn{font-size:16px; font-weight:800;}
+  .panel .ps{font-size:11.5px; color:var(--ink-2); font-weight:600;}
+  .panel .cap{font-size:11px; font-weight:600; color:var(--ink-2); margin-top:12px; display:flex; align-items:flex-start; gap:8px; line-height:1.34;}
+  .cap b{font-weight:800; color:inherit;}
+
+  /* IaaS */
+  .iaas{background:var(--gray-bg); border-color:var(--gray-line);}
+  .iaas .pn{color:#48505C;}
+  .envs{display:flex; gap:9px;}
+  .env{flex:1; display:flex; flex-direction:column;}
+  .env .et{font-size:10px; font-weight:800; color:#5B6470; text-align:center; margin-bottom:6px; letter-spacing:.3px;}
+  .stack{display:flex; flex-direction:column; gap:5px;}
+  .tile{background:#fff; border:1px solid #C2C8D1; border-radius:7px; padding:6px 6px; text-align:center;}
+  .tile .tt{display:block; font-size:8px; font-weight:800; letter-spacing:.4px; text-transform:uppercase; color:#828A95; margin-bottom:2px;}
+  .tile .tv{font-size:10px; font-weight:700; color:#3f4651; line-height:1.2;}
+  .tile.wire{background:#E4E7EC; border:1px dashed #A7AEB9;}
+  .tile.wire .tt{color:#6B7480;}
+  .iaas .cap{color:#6B7480;}
+  .badge-warn{background:#FBE3D8; color:#C0410E; border:1px solid #F3C3AC; font-size:10px; font-weight:800;
+    padding:3px 8px; border-radius:6px; white-space:nowrap; flex:none;}
+
+  /* PaaS */
+  .paas{background:var(--cloudera-tint); border-color:var(--cloudera-line);}
+  .paas .pn{color:var(--cloudera-dk);}
+  .penv{display:flex; gap:12px; align-items:stretch;}
+  .penvcol{flex:1; display:flex; flex-direction:column;}
+  .penvcol .et{font-size:10px; font-weight:800; color:var(--cloudera-dk); text-align:center; margin-bottom:5px; letter-spacing:.3px;}
+  .hublbl{font-size:8px; font-weight:800; letter-spacing:.4px; text-transform:uppercase; color:var(--cloudera-dk); opacity:.7; text-align:center; margin-bottom:5px;}
+  .hubs{flex:1; display:flex; flex-wrap:wrap; gap:5px; justify-content:center; align-content:flex-start;}
+  .hub{font-size:9.5px; font-weight:800; color:var(--cloudera-dk); background:#fff;
+    border:1.4px solid var(--cloudera-line); border-radius:6px; padding:5px 8px; line-height:1;}
+  .inherit{display:flex; align-items:center; justify-content:center; gap:5px; font-size:8px; font-weight:800;
+    text-transform:uppercase; letter-spacing:.4px; color:var(--cloudera-dk); opacity:.8; margin:7px 0 6px;}
+  .inherit svg{display:block;}
+  .dlake{background:var(--cloudera); border-radius:9px; padding:9px 10px; box-shadow:0 7px 18px rgba(249,103,2,.22);}
+  .dlake .dt{font-size:10.5px; font-weight:800; color:#fff; text-align:center; letter-spacing:.2px;}
+  .dlake .dchips{display:flex; flex-wrap:wrap; gap:4px; justify-content:center; margin-top:7px;}
+  .dlake .dc{font-size:8.5px; font-weight:700; color:#fff; background:rgba(255,255,255,.20); border-radius:5px; padding:3px 7px; line-height:1.1;}
+  .paas .cap{color:var(--cloudera-dk);}
+  .badge-good{background:#fff; color:var(--cloudera-dk); border:1px solid var(--cloudera-line); font-size:10px; font-weight:800;
+    padding:3px 8px; border-radius:6px; white-space:nowrap; flex:none;}
+
+  /* value strip */
+  .value{display:grid; grid-template-columns:repeat(4,1fr); gap:14px;}
+  .v{border-left:3px solid var(--magenta); padding:1px 0 1px 13px;}
+  .v .vh{font-size:13px; font-weight:800; color:var(--ink); line-height:1.15;}
+  .v .vp{font-size:11px; color:var(--ink-2); margin-top:4px; line-height:1.4; font-weight:500;}
+
+  .foot{display:flex; justify-content:space-between; align-items:center; margin-top:auto; padding-top:14px; border-top:1px solid var(--line);}
+  .foot .pov{font-size:14px; font-weight:800; color:var(--navy);}
+  .foot .pov em{color:var(--cloudera); font-style:normal;}
+  .foot .brand{font-size:10px; color:#9AA2AD;}
+</style>
+</head>
+<body>
+  <div class="slide">
+    <div class="topbar"></div>
+    <div class="pad">
+      <div class="head">
+        <div>
+          <div class="eyebrow">IaaS → CDP PaaS · the business case</div>
+          <h1>Govern the platform <span class="c">once</span> — not once per environment.</h1>
+        </div>
+        <div class="forbadge"><span class="tmo">T</span> prepared for T&#8209;Mobile</div>
+      </div>
+
+      <div class="body">
+      <!-- COMPARE -->
+      <div class="compare">
+        <!-- IaaS -->
+        <div class="panel iaas">
+          <div class="ph"><span class="pn">IaaS</span><span class="ps">you wire every environment yourself</span></div>
+          <div class="envs">
+            <div class="env">
+              <div class="et">Dev</div>
+              <div class="stack">
+                <div class="tile"><span class="tt">Workloads</span><span class="tv">Kafka · Spark · Impala</span></div>
+                <div class="tile wire"><span class="tt">Security &amp; gov</span><span class="tv">Ranger · Atlas · Knox</span></div>
+                <div class="tile wire"><span class="tt">Schema</span><span class="tv">Registry · Metastore</span></div>
+              </div>
+            </div>
+            <div class="env">
+              <div class="et">Test</div>
+              <div class="stack">
+                <div class="tile"><span class="tt">Workloads</span><span class="tv">Kafka · Spark · Impala</span></div>
+                <div class="tile wire"><span class="tt">Security &amp; gov</span><span class="tv">Ranger · Atlas · Knox</span></div>
+                <div class="tile wire"><span class="tt">Schema</span><span class="tv">Registry · Metastore</span></div>
+              </div>
+            </div>
+            <div class="env">
+              <div class="et">Prod</div>
+              <div class="stack">
+                <div class="tile"><span class="tt">Workloads</span><span class="tv">Kafka · Spark · Impala</span></div>
+                <div class="tile wire"><span class="tt">Security &amp; gov</span><span class="tv">Ranger · Atlas · Knox</span></div>
+                <div class="tile wire"><span class="tt">Schema</span><span class="tv">Registry · Metastore</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="cap"><span class="badge-warn">wired 3×</span> <span>every environment stands up &amp; secures its <b>own</b> services — triple the build, and policies drift apart over time</span></div>
+        </div>
+
+        <!-- PaaS -->
+        <div class="panel paas">
+          <div class="ph"><span class="pn">CDP PaaS</span><span class="ps">Cloudera runs the platform; you attach workloads</span></div>
+          <div class="penv">
+            <!-- Dev env -->
+            <div class="penvcol">
+              <div class="et">Dev environment</div>
+              <div class="hublbl">Data Hubs · ephemeral, push-button</div>
+              <div class="hubs">
+                <span class="hub">Kafka</span><span class="hub">Spark</span><span class="hub">Impala</span><span class="hub">Flink</span>
+              </div>
+              <div class="inherit">
+                <svg width="10" height="11" viewBox="0 0 10 11"><path d="M5 0v7M5 10L1.5 6.5M5 10l3.5-3.5" stroke="#B84E04" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                attach &amp; inherit
+              </div>
+              <div class="dlake">
+                <div class="dt">Data Lake · SDX</div>
+                <div class="dchips"><span class="dc">Ranger</span><span class="dc">Atlas</span><span class="dc">Schema Reg</span><span class="dc">Knox</span><span class="dc">Metastore</span></div>
+              </div>
+            </div>
+            <!-- Prod env -->
+            <div class="penvcol">
+              <div class="et">Prod environment</div>
+              <div class="hublbl">Data Hubs · ephemeral, push-button</div>
+              <div class="hubs">
+                <span class="hub">Kafka</span><span class="hub">Impala</span>
+              </div>
+              <div class="inherit">
+                <svg width="10" height="11" viewBox="0 0 10 11"><path d="M5 0v7M5 10L1.5 6.5M5 10l3.5-3.5" stroke="#B84E04" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                attach &amp; inherit
+              </div>
+              <div class="dlake">
+                <div class="dt">Data Lake · SDX</div>
+                <div class="dchips"><span class="dc">Ranger</span><span class="dc">Atlas</span><span class="dc">Schema Reg</span><span class="dc">Knox</span><span class="dc">Metastore</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="cap"><span class="badge-good">govern once</span> <span>one Data Lake per environment — <b>every</b> Data Hub inherits the same security, governance &amp; lineage the moment it starts</span></div>
+        </div>
+      </div>
+
+      <!-- VALUE -->
+      <div class="value">
+        <div class="v"><div class="vh">Govern once, not per env</div><div class="vp">Ranger, Atlas &amp; Knox live in the Data Lake. Every Data Hub inherits identical policies — no re-wiring, no drift.</div></div>
+        <div class="v"><div class="vh">Data Hubs in minutes</div><div class="vp">Spin up Kafka, Spark, Impala or Flink against the shared Data Lake; tear them down when the job is done.</div></div>
+        <div class="v"><div class="vh">Provable Dev → Prod parity</div><div class="vp">Same security, audit &amp; lineage in every environment — compliance you can show, not rebuild three times.</div></div>
+        <div class="v"><div class="vh">Stretch the Azure commit</div><div class="vp">CDP on the Azure Marketplace draws down committed spend; pay for compute only while Data Hubs run.</div></div>
+      </div>
+      </div>
+
+      <div class="foot">
+        <div class="pov">One Data Lake governs the environment — <em>Data Hubs attach, inherit, and scale on demand.</em></div>
+        <div class="brand">©2025 Cloudera, Inc.</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -12,7 +12,12 @@ import threading
 # Use Anaconda Python if available (has all dependencies installed)
 PYTHON = os.getenv("PYTHON_BIN", "/opt/anaconda3/bin/python")
 
-BASE_DIR = os.path.dirname(__file__)
+# CML PBJ runtime executes via an IPython kernel where __file__ is not defined.
+try:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+except NameError:
+    BASE_DIR = os.environ.get("CDSW_PROJECT_DIR", os.getcwd())
+
 BACKEND_DIR = os.path.join(BASE_DIR, "02_backend")
 FRONTEND_DIR = os.path.join(BASE_DIR, "03_frontend")
 
@@ -78,7 +83,8 @@ def run_frontend():
         subprocess.run(["npm", "run", "dev"], cwd=FRONTEND_DIR)
 
 
-if __name__ == "__main__":
+# Run unconditionally — CML PBJ kernel doesn't set __name__ == "__main__"
+if True:
     print(f"Starting Cloudera AI Agents {'(Cloudera CAI mode)' if IS_CLOUDERA else '(local dev mode)'}")
 
     if IS_CLOUDERA:

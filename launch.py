@@ -29,9 +29,25 @@ BACKEND_DIR = os.path.join(BASE_DIR, "02_backend")
 FRONTEND_DIR = os.path.join(BASE_DIR, "03_frontend")
 
 
+def _free_port(port):
+    """Kill any process still holding `port` (a stale uvicorn the CML PBJ
+    kernel didn't reap on restart). Makes every start idempotent."""
+    for cmd in (["fuser", "-k", f"{port}/tcp"],
+                ["pkill", "-9", "-f", f"uvicorn.*{port}"],
+                ["pkill", "-9", "-f", "uvicorn"]):
+        try:
+            subprocess.run(cmd, capture_output=True, timeout=10)
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            continue
+    time.sleep(2)  # let the OS release the socket
+
+
 def run_backend():
     env = {**os.environ, "PYTHONPATH": BACKEND_DIR}
     workers = int(os.getenv("UVICORN_WORKERS", "1"))
+    if IS_CLOUDERA:
+        print(f"[launch] clearing any stale listener on :{APP_PORT}")
+        _free_port(APP_PORT)
     cmd = [
         PYTHON, "-m", "uvicorn", "app:app",
         "--host", "0.0.0.0",

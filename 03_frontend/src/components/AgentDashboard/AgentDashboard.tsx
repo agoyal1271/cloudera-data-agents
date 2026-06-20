@@ -45,7 +45,7 @@ export function AgentDashboard({ selectedAgent, onSelectAgent }: Props) {
       </div>
 
       {/* Service health strip */}
-      {health && (
+      {health?.services && (
         <div className="flex gap-3 flex-wrap">
           {Object.entries(health.services).map(([name, status]) => (
             <div key={name} className="flex items-center gap-1.5 bg-agent-dark-border border border-agent-dark-border rounded-lg px-3 py-1.5">

@@ -29,36 +29,48 @@ BACKEND_DIR = os.path.join(BASE_DIR, "02_backend")
 FRONTEND_DIR = os.path.join(BASE_DIR, "03_frontend")
 
 
-def _free_port(port):
-    """Kill any process still holding `port` (a stale uvicorn the CML PBJ
-    kernel didn't reap on restart). Makes every start idempotent."""
-    for cmd in (["fuser", "-k", f"{port}/tcp"],
-                ["pkill", "-9", "-f", f"uvicorn.*{port}"],
-                ["pkill", "-9", "-f", "uvicorn"]):
-        try:
-            subprocess.run(cmd, capture_output=True, timeout=10)
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            continue
-    time.sleep(2)  # let the OS release the socket
+def _port_in_use(port):
+    """True if something is already accepting connections on `port`."""
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(1)
+        return s.connect_ex(("127.0.0.1", port)) == 0
 
 
 def run_backend():
+    """
+    Start a single in-process uvicorn. The CML PBJ kernel can execute
+    launch.py more than once; this loop ensures we never crash the app with
+    a duplicate "address already in use" bind. A duplicate launch simply
+    idles while the first uvicorn serves.
+    """
     env = {**os.environ, "PYTHONPATH": BACKEND_DIR}
-    workers = int(os.getenv("UVICORN_WORKERS", "1"))
-    if IS_CLOUDERA:
-        print(f"[launch] clearing any stale listener on :{APP_PORT}")
-        _free_port(APP_PORT)
     cmd = [
         PYTHON, "-m", "uvicorn", "app:app",
         "--host", "0.0.0.0",
         "--port", str(APP_PORT),
-        "--workers", str(workers),
         "--log-level", "info",
     ]
     if not IS_CLOUDERA:
         cmd.append("--reload")
-    print(f"[launch] starting uvicorn on :{APP_PORT} workers={workers} cwd={BACKEND_DIR}")
-    subprocess.run(cmd, cwd=BACKEND_DIR, env=env)
+        subprocess.run(cmd, cwd=BACKEND_DIR, env=env)
+        return
+
+    # CML: never let this process exit (would mark the app stopped).
+    while True:
+        if _port_in_use(APP_PORT):
+            print(f"[launch] :{APP_PORT} already serving — idling this launch")
+            while True:
+                time.sleep(3600)
+        print(f"[launch] starting uvicorn on :{APP_PORT} cwd={BACKEND_DIR}")
+        subprocess.run(cmd, cwd=BACKEND_DIR, env=env)
+        # uvicorn exited. If another launch grabbed the port, idle; else retry.
+        if _port_in_use(APP_PORT):
+            print(f"[launch] uvicorn exited but :{APP_PORT} served elsewhere — idling")
+            while True:
+                time.sleep(3600)
+        print("[launch] uvicorn exited; retrying in 3s")
+        time.sleep(3)
 
 
 def run_frontend():

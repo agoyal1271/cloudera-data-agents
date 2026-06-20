@@ -29,15 +29,12 @@ BACKEND_DIR = os.path.join(BASE_DIR, "02_backend")
 FRONTEND_DIR = os.path.join(BASE_DIR, "03_frontend")
 
 
-def _kill_port_holder(port):
-    """
-    Find and SIGKILL whatever process is LISTENing on `port`, using pure
-    /proc parsing (no fuser/pkill needed). On CML the previous uvicorn gets
-    orphaned across PBJ-kernel restarts and keeps holding the port; this
-    clears it so the new uvicorn can bind.
-    """
+def _describe_port_holder(port):
+    """Log which process currently LISTENs on `port`, and on which address,
+    so we can see whether it's the CML proxy (PID 1) and which interface it
+    bound. Pure /proc parsing — no external tools."""
     hexport = f"{port:04X}"
-    inodes = set()
+    inodes = {}
     for proc_net in ("/proc/net/tcp", "/proc/net/tcp6"):
         try:
             with open(proc_net) as f:
@@ -49,64 +46,54 @@ def _kill_port_holder(port):
             if len(parts) < 10:
                 continue
             local, state, inode = parts[1], parts[3], parts[9]
-            # state 0A == TCP_LISTEN
             if local.split(":")[-1].upper() == hexport and state == "0A":
-                inodes.add(inode)
+                inodes[inode] = local  # local is HEXIP:HEXPORT
     if not inodes:
-        print(f"[launch] no existing listener on :{port}")
+        print(f"[launch] :{port} has no current LISTEN socket (loopback should be free)")
         return
-
-    me = os.getpid()
-    killed = []
     for pid in os.listdir("/proc"):
-        if not pid.isdigit() or int(pid) == me:
+        if not pid.isdigit():
             continue
-        fd_dir = f"/proc/{pid}/fd"
         try:
-            fds = os.listdir(fd_dir)
+            fds = os.listdir(f"/proc/{pid}/fd")
         except OSError:
             continue
         for fd in fds:
             try:
-                link = os.readlink(f"{fd_dir}/{fd}")
+                link = os.readlink(f"/proc/{pid}/fd/{fd}")
             except OSError:
                 continue
             if link.startswith("socket:[") and link[8:-1] in inodes:
                 try:
-                    os.kill(int(pid), 9)
-                    killed.append(pid)
+                    with open(f"/proc/{pid}/cmdline", "rb") as cf:
+                        cmd = cf.read().replace(b"\0", b" ").decode(errors="replace").strip()
                 except OSError:
-                    pass
+                    cmd = "?"
+                print(f"[launch] :{port} held by pid={pid} addr={inodes[link[8:-1]]} cmd={cmd!r}")
                 break
-    print(f"[launch] killed stale listener(s) on :{port}: {killed or 'none'}")
-    time.sleep(2)  # let the OS release the socket
 
 
 def run_backend():
     """
-    Start uvicorn as a subprocess. Before binding, clear any orphaned
-    listener on APP_PORT (left by a prior PBJ-kernel restart) so we never
-    crash with 'address already in use'. Loops so the app process never
-    exits (which CML would treat as the app stopping).
+    Start uvicorn. On CML the runtime's app-proxy (PID 1) already owns the
+    pod-IP side of CDSW_APP_PORT and forwards to the app on loopback, so we
+    bind 127.0.0.1 (not 0.0.0.0, which collides with the proxy's bind).
+    Override with UVICORN_HOST if needed.
     """
     env = {**os.environ, "PYTHONPATH": BACKEND_DIR}
+    host = os.getenv("UVICORN_HOST", "127.0.0.1" if IS_CLOUDERA else "0.0.0.0")
     cmd = [
         PYTHON, "-m", "uvicorn", "app:app",
-        "--host", "0.0.0.0",
+        "--host", host,
         "--port", str(APP_PORT),
         "--log-level", "info",
     ]
     if not IS_CLOUDERA:
         cmd.append("--reload")
-        subprocess.run(cmd, cwd=BACKEND_DIR, env=env)
-        return
-
-    while True:
-        _kill_port_holder(APP_PORT)
-        print(f"[launch] starting uvicorn on :{APP_PORT} cwd={BACKEND_DIR}")
-        subprocess.run(cmd, cwd=BACKEND_DIR, env=env)
-        print("[launch] uvicorn exited; clearing port and retrying in 3s")
-        time.sleep(3)
+    if IS_CLOUDERA:
+        _describe_port_holder(APP_PORT)
+    print(f"[launch] starting uvicorn on {host}:{APP_PORT} cwd={BACKEND_DIR}")
+    subprocess.run(cmd, cwd=BACKEND_DIR, env=env)
 
 
 def run_frontend():

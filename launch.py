@@ -29,20 +29,65 @@ BACKEND_DIR = os.path.join(BASE_DIR, "02_backend")
 FRONTEND_DIR = os.path.join(BASE_DIR, "03_frontend")
 
 
-def _port_in_use(port):
-    """True if something is already accepting connections on `port`."""
-    import socket
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.settimeout(1)
-        return s.connect_ex(("127.0.0.1", port)) == 0
+def _kill_port_holder(port):
+    """
+    Find and SIGKILL whatever process is LISTENing on `port`, using pure
+    /proc parsing (no fuser/pkill needed). On CML the previous uvicorn gets
+    orphaned across PBJ-kernel restarts and keeps holding the port; this
+    clears it so the new uvicorn can bind.
+    """
+    hexport = f"{port:04X}"
+    inodes = set()
+    for proc_net in ("/proc/net/tcp", "/proc/net/tcp6"):
+        try:
+            with open(proc_net) as f:
+                lines = f.readlines()[1:]
+        except FileNotFoundError:
+            continue
+        for line in lines:
+            parts = line.split()
+            if len(parts) < 10:
+                continue
+            local, state, inode = parts[1], parts[3], parts[9]
+            # state 0A == TCP_LISTEN
+            if local.split(":")[-1].upper() == hexport and state == "0A":
+                inodes.add(inode)
+    if not inodes:
+        print(f"[launch] no existing listener on :{port}")
+        return
+
+    me = os.getpid()
+    killed = []
+    for pid in os.listdir("/proc"):
+        if not pid.isdigit() or int(pid) == me:
+            continue
+        fd_dir = f"/proc/{pid}/fd"
+        try:
+            fds = os.listdir(fd_dir)
+        except OSError:
+            continue
+        for fd in fds:
+            try:
+                link = os.readlink(f"{fd_dir}/{fd}")
+            except OSError:
+                continue
+            if link.startswith("socket:[") and link[8:-1] in inodes:
+                try:
+                    os.kill(int(pid), 9)
+                    killed.append(pid)
+                except OSError:
+                    pass
+                break
+    print(f"[launch] killed stale listener(s) on :{port}: {killed or 'none'}")
+    time.sleep(2)  # let the OS release the socket
 
 
 def run_backend():
     """
-    Start a single in-process uvicorn. The CML PBJ kernel can execute
-    launch.py more than once; this loop ensures we never crash the app with
-    a duplicate "address already in use" bind. A duplicate launch simply
-    idles while the first uvicorn serves.
+    Start uvicorn as a subprocess. Before binding, clear any orphaned
+    listener on APP_PORT (left by a prior PBJ-kernel restart) so we never
+    crash with 'address already in use'. Loops so the app process never
+    exits (which CML would treat as the app stopping).
     """
     env = {**os.environ, "PYTHONPATH": BACKEND_DIR}
     cmd = [
@@ -56,20 +101,11 @@ def run_backend():
         subprocess.run(cmd, cwd=BACKEND_DIR, env=env)
         return
 
-    # CML: never let this process exit (would mark the app stopped).
     while True:
-        if _port_in_use(APP_PORT):
-            print(f"[launch] :{APP_PORT} already serving — idling this launch")
-            while True:
-                time.sleep(3600)
+        _kill_port_holder(APP_PORT)
         print(f"[launch] starting uvicorn on :{APP_PORT} cwd={BACKEND_DIR}")
         subprocess.run(cmd, cwd=BACKEND_DIR, env=env)
-        # uvicorn exited. If another launch grabbed the port, idle; else retry.
-        if _port_in_use(APP_PORT):
-            print(f"[launch] uvicorn exited but :{APP_PORT} served elsewhere — idling")
-            while True:
-                time.sleep(3600)
-        print("[launch] uvicorn exited; retrying in 3s")
+        print("[launch] uvicorn exited; clearing port and retrying in 3s")
         time.sleep(3)
 
 

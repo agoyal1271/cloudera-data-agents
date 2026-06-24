@@ -117,11 +117,13 @@ Current asset in context: {context}
 User message: "{message}"
 
 Respond with ONLY compact JSON, no prose:
-{{"intent":"discover|lineage|query|describe|smalltalk","asset":"<asset name or empty>","question":"<analytical question or empty>","keywords":["..."]}}
+{{"intent":"discover|lineage|query|describe|smalltalk","asset":"<asset name or empty>","question":"<analytical question or empty>","keywords":["..."],"scope":"all|search","asset_type":"iceberg_table|kafka_topic|"}}
 
 Rules:
 - quality   → user asks about data QUALITY/TRUST ("is X clean", "data quality", "quality score", "how good is X", "is X reliable", "check quality", "is X trustworthy")
 - discover  → user wants to FIND data ("find", "show me", "which tables", "what data about X", "discover", "<domain> data")
+- scope (discover only): "all" when the user wants the COMPLETE inventory/list of a type with NO content filter ("all iceberg tables", "list every table", "what tables exist", "how many topics", "show me everything"). "search" when they want assets ABOUT a topic/domain or with certain content ("tables with geolocation", "payment data", "customer tables"). Default "search".
+- asset_type (discover only): "iceberg_table" if they say table(s)/iceberg/lakehouse; "kafka_topic" if they say topic(s)/stream/kafka; empty "" if unspecified.
 - lineage   → ONLY when the user explicitly asks about data ORIGIN or FLOW. Must contain one of: "lineage", "come(s) from", "upstream", "downstream", "feeds", "depends on", "what breaks", "impact of changing", "where does <X> get its data". A bare "where" is NOT lineage.
 - query     → user wants VALUES/NUMBERS from data ("how many", "average", "top N", "count", "total", "sum", "by <dimension>", "where <subject> <verb>", "which <X> has the most", "show rows")
 - describe  → user wants to UNDERSTAND one asset ("what is X", "describe", "schema", "columns", "explain")
@@ -191,6 +193,9 @@ async def _load_catalog() -> list[dict]:
                 "asset_type": "iceberg_table",
                 "fields": [f.get("name", "") for f in t.get("fields", [])],
                 "field_objs": t.get("fields", []),
+                # snapshot count is a free change signal — it increments on every commit,
+                # so the ambient quality check can skip re-profiling unchanged tables.
+                "snapshots": t.get("snapshots"),
             })
     except Exception as exc:
         logger.debug(f"[chat] iceberg list failed: {exc}")
@@ -210,6 +215,78 @@ async def _load_catalog() -> list[dict]:
         logger.debug(f"[chat] topic list failed: {exc}")
 
     return assets
+
+
+# ── Retrieval (scales to 1000s of tables — never enumerates the catalog) ───────
+
+async def _search_assets(query: str, top_k: int = 10, asset_type: Optional[str] = None) -> list[dict]:
+    """Top-N candidate assets from the semantic catalog index (Qdrant), not a full
+    scan. Returns lightweight dicts with field NAMES only. Empty if the index is
+    unpopulated — callers fall back to a small-catalog path only then."""
+    from tools.catalog import catalog_store
+    try:
+        stats = await asyncio.to_thread(catalog_store.get_stats)
+        if not stats.get("available"):
+            return []
+        types = [asset_type] if asset_type else None
+        hits = await asyncio.to_thread(catalog_store.search, query, types, top_k)
+        return [{
+            "name": h.get("name", ""),
+            "asset_type": h.get("asset_type", "") or "iceberg_table",
+            "fields": h.get("field_names", []) or [],
+            "field_count": h.get("field_count", 0),
+            "similarity": h.get("similarity"),
+            "description": h.get("description", ""),
+        } for h in hits if h.get("name")]
+    except Exception as e:
+        logger.debug(f"[chat] index search failed: {e}")
+        return []
+
+
+async def _resolve_asset(name: str) -> Optional[dict]:
+    """Resolve ONE asset to a record with TYPED fields — lazily, no full catalog load.
+    Direct Iceberg/Kafka describe first; falls back to a single top-1 index match."""
+    if not name:
+        return None
+
+    def _iceberg(n: str) -> Optional[dict]:
+        from tools.iceberg.iceberg_tools import describe_iceberg_table
+        meta = describe_iceberg_table(n)
+        if meta and not meta.get("mock") and meta.get("fields"):
+            return {"name": n, "asset_type": "iceberg_table",
+                    "fields": [f.get("name", "") for f in meta["fields"]],
+                    "field_objs": meta["fields"],
+                    "snapshots": len(meta.get("snapshots", []) or [])}
+        return None
+
+    # 1. Direct Iceberg describe — a fully-qualified db.table resolves with zero search.
+    if "." in name:
+        rec = await asyncio.to_thread(_iceberg, name)
+        if rec:
+            return rec
+
+    # 2. Direct Kafka topic (one Schema Registry lookup, cached).
+    try:
+        from tools.kafka.kafka_tools import get_topic_schema_from_registry
+        topic = await asyncio.to_thread(get_topic_schema_from_registry, name)
+        if topic and topic.get("fields"):
+            return {"name": name, "asset_type": "kafka_topic",
+                    "fields": [f.get("name", "") for f in topic["fields"]],
+                    "field_objs": topic["fields"]}
+    except Exception:
+        pass
+
+    # 3. Index fallback: best single semantic match → describe it for typed fields.
+    cand = await _search_assets(name, top_k=1)
+    if cand:
+        c = cand[0]
+        if c["asset_type"] == "iceberg_table":
+            rec = await asyncio.to_thread(_iceberg, c["name"])
+            if rec:
+                return rec
+        c["field_objs"] = [{"name": f} for f in c.get("fields", [])]
+        return c
+    return None
 
 
 import re as _re
@@ -369,23 +446,122 @@ def _wants_quality(message: str) -> bool:
     return any(w in m for w in _QUALITY_VERBS)
 
 
+# ── Enumeration vs. semantic discovery ────────────────────────────────────────
+# "give me all iceberg tables" is a BROWSE request — the user wants the complete
+# typed list, not a semantically-ranked subset. Routing it through the LLM
+# intent-filter (which is told to "exclude tangential matches") wrongly prunes it
+# to a handful. Detect the browse case and list everything of that type instead.
+_LIST_ALL_RE = _re.compile(r"\b(all|every|list|complete|entire|full|how\s+many)\b", _re.I)
+_QUALIFIER_RE = _re.compile(
+    r"\b(with|about|containing|contains|related|that\s+have|having|for|on|where|matching|like)\b",
+    _re.I,
+)
+# Words that mean the user EXPLICITLY restricted to an asset type. Absent these,
+# a query like "assets with geolocation" must search every type, not just tables.
+_TYPE_WORD_RE = _re.compile(
+    r"\b(table|tables|iceberg|lakehouse|topic|topics|kafka|stream|streams|queue)\b", _re.I
+)
+
+
+def _enumeration_type(message: str) -> Optional[str]:
+    """If the message is a plain 'list all <type>' browse request, return the asset
+    type to enumerate ('iceberg_table' | 'kafka_topic' | 'any'). Otherwise None —
+    it's a content search and should go through the index / LLM-match path."""
+    m = message.lower().strip()
+    bare = m in ("tables", "topics", "iceberg tables", "kafka topics", "assets",
+                 "all tables", "all topics")
+    if not (bare or _LIST_ALL_RE.search(m)):
+        return None
+    # A content qualifier ("all tables WITH pii", "all topics ABOUT orders") means
+    # it's still a filtered search, not a plain browse — let the semantic path run.
+    if _QUALIFIER_RE.search(m):
+        return None
+    if "iceberg" in m:
+        return "iceberg_table"
+    if "kafka" in m or "topic" in m:
+        return "kafka_topic"
+    if "table" in m:
+        return "iceberg_table"
+    return "any"
+
+
 # ── Route handlers (each yields SSE blocks) ───────────────────────────────────
 
+_TYPE_LABEL = {"iceberg_table": "Iceberg tables", "kafka_topic": "Kafka topics", "any": "assets"}
+
+
 async def _handle_discover(message: str, cls: dict, catalog: Optional[list] = None) -> AsyncGenerator[str, None]:
-    if catalog is None:
-        catalog = await _load_catalog()
-    by_name = {a["name"]: a for a in catalog}
+    # ── Browse vs. search is decided by the LLM router (it generalizes to any
+    # phrasing). Regex is only a fallback for when the router didn't supply scope
+    # (e.g. the model-down heuristic path). ──────────────────────────────────────
+    scope = (cls.get("scope") or "").lower()
+    asset_type = (cls.get("asset_type") or "").lower() or None
+    if scope not in ("all", "search"):
+        et = _enumeration_type(message)            # model gave no scope → cheap regex guess
+        scope = "all" if et else "search"
+        if et and et != "any":
+            asset_type = asset_type or et
 
-    yield _step("Scanning your catalog", f"{len(catalog)} assets")
-    yield _step("Matching your intent with the model")
-    # Primary: LLM semantic match (understands intent, not just keywords)
-    reasons = await _semantic_filter(message, catalog)
-    matched = [by_name[n] for n in reasons if n in by_name]
+    # Honor a type restriction ONLY when the user actually named a type. A generic
+    # "assets/data with geolocation" must span BOTH tables and topics — the router
+    # sometimes over-tags these as iceberg_table, which would wrongly drop Kafka.
+    if asset_type and not _TYPE_WORD_RE.search(message):
+        asset_type = None
 
-    # Fallback: keyword ranking if the LLM returned nothing
-    used_semantic = bool(matched)
-    if not matched:
-        matched = _keyword_rank(catalog, message, limit=8)
+    # ── Browse path: list the COMPLETE typed set, no semantic pruning. ───────────
+    if scope == "all":
+        catalog = catalog if catalog is not None else await _load_catalog()
+        list_type = asset_type or "any"
+        items = sorted(
+            (a for a in catalog if list_type == "any" or a["asset_type"] == list_type),
+            key=lambda a: a["name"],
+        )
+        label = _TYPE_LABEL.get(list_type, "assets")
+        yield _step("Listing your catalog", f"{len(items)} {label}")
+        if not items:
+            yield _sse({"type": "text", "text": f"I don't see any {label} in the catalog yet."})
+            return
+        CAP = 200
+        shown, total = items[:CAP], len(items)
+        cards = [{
+            "name": a["name"], "asset_type": a["asset_type"],
+            "field_count": len(a["fields"]), "fields": a["fields"][:6], "reason": "",
+        } for a in shown]
+        note = f" (showing the first {CAP})" if total > CAP else ""
+        yield _sse({"type": "text", "text": f"Here are all {total} {label}{note}. Click one to explore."})
+        yield _sse({"type": "assets", "assets": cards})
+        return
+
+    # ── Search path: retrieve only the top-N candidates from the semantic index —
+    # never load the whole catalog. Scales to thousands of tables. ───────────────
+    yield _step("Searching your catalog index", "top matches only")
+    candidates = await _search_assets(message, top_k=12, asset_type=asset_type)
+
+    if candidates:
+        # Got semantic candidates from the index → rerank/explain with the model over
+        # just those N (cheap — not the catalog). The index already understood intent
+        # (e.g. "geolocation" → tables with lat/lon), so even un-reranked hits are good.
+        by_name = {a["name"]: a for a in candidates}
+        yield _step("Matching your intent with the model")
+        reasons = await _semantic_filter(message, candidates)
+        matched = [by_name[n] for n in reasons if n in by_name]
+        used_semantic = True
+        if not matched:
+            matched = candidates[:8]
+    else:
+        # Index empty/unavailable → small-catalog fallback: run the SMART LLM match over
+        # the full list (literal keyword ranking can't map "geolocation" → lat/lon).
+        catalog = catalog if catalog is not None else await _load_catalog()
+        if asset_type:
+            catalog = [a for a in catalog if a["asset_type"] == asset_type]
+        yield _step("Scanning your catalog", f"{len(catalog)} assets")
+        by_name = {a["name"]: a for a in catalog}
+        yield _step("Matching your intent with the model")
+        reasons = await _semantic_filter(message, catalog)
+        matched = [by_name[n] for n in reasons if n in by_name]
+        used_semantic = bool(matched)
+        if not matched:
+            matched = _keyword_rank(catalog, message, limit=8)
 
     if not matched:
         yield _sse({"type": "text", "text": f"I couldn't find assets matching “{message}”. Try a broader term, or name a domain like *payments*, *customers*, or *fraud*."})
@@ -454,11 +630,9 @@ async def _handle_query(cls: dict, catalog: Optional[list] = None) -> AsyncGener
         yield _sse({"type": "text", "text": "Which table should I query? Name one and I'll run it."})
         return
 
-    if catalog is None:
-        catalog = await _load_catalog()
-    a = _find_asset(catalog, asset)
+    a = await _resolve_asset(asset)
     if not a:
-        yield _sse({"type": "text", "text": f"I don't see **{asset}** in the catalog. Try discovering it first."})
+        yield _sse({"type": "text", "text": f"I couldn't resolve **{asset}**. Try discovering it first."})
         return
     if a["asset_type"] != "iceberg_table":
         yield _sse({"type": "text", "text": f"**{asset}** is a Kafka topic — live streams are queried with Flink, not batch SQL. I can run SQL on Iceberg tables."})
@@ -526,19 +700,31 @@ async def _handle_query(cls: dict, catalog: Optional[list] = None) -> AsyncGener
     except Exception as _ue:
         logger.debug(f"[chat] usage write skipped: {_ue}")
 
-    # Trust caveat — quality travels with the answer, but only when it matters.
+    # Ambient data quality — a compact quality signal travels with the answer, so the
+    # user sees how trustworthy the data is without leaving the conversation. It's
+    # freshness-gated on the Iceberg snapshot count: a table whose data hasn't changed
+    # since the last check is served from cache, never re-profiled.
     try:
+        from tools.quality import scan_state
+        from tools.quality.profiler import basic_checks
         from tools.quality.quality_tools import quality_trend
-        t = await asyncio.to_thread(quality_trend, a["name"])
-        if t and (t["direction"] == "down" or t["level"] in ("fair", "poor")):
-            arrow = "↓" if t["direction"] == "down" else "•"
-            yield _sse({"type": "caveat", "asset": a["name"], "level": t["level"],
-                        "direction": t["direction"],
-                        "text": (f"Data trust — {a['name']} quality is {t['current']}/100 {arrow} "
-                                 f"({'down' if t['direction']=='down' else 'flat'} from {t['baseline']} over "
-                                 f"{t['window_days']} days). Driver: {t['driver']}. Treat aggregates with care.")})
-    except Exception as _ce:
-        logger.debug(f"[chat] caveat skipped: {_ce}")
+        version = str(a["snapshots"]) if a.get("snapshots") is not None else None
+        if scan_state.is_unchanged(a["name"], version):
+            basic = (scan_state.get_last(a["name"]) or {}).get("basic") or {}
+        else:
+            yield _step("Checking data quality in the background", "one cohesive query, cached by snapshot")
+            basic = await asyncio.to_thread(basic_checks, a["name"], a["field_objs"])
+            scan_state.save(a["name"], version, basic, {})
+        if basic.get("overall_score") is not None:
+            trend = await asyncio.to_thread(quality_trend, a["name"])
+            yield _sse({
+                "type": "quality", "asset": a["name"], "ambient": True,
+                "overall_score": basic.get("overall_score"), "counts": basic.get("counts"),
+                "checks": basic.get("checks", []), "total_rows": basic.get("total_rows", 0),
+                "trend": trend, "root_cause": None, "written_to_om": False,
+            })
+    except Exception as _qe:
+        logger.debug(f"[chat] ambient quality skipped: {_qe}")
 
 
 async def _handle_quality(cls: dict, catalog: Optional[list] = None) -> AsyncGenerator[str, None]:
@@ -546,9 +732,7 @@ async def _handle_quality(cls: dict, catalog: Optional[list] = None) -> AsyncGen
     if not asset:
         yield _sse({"type": "text", "text": "Which asset should I check the quality of?"})
         return
-    if catalog is None:
-        catalog = await _load_catalog()
-    a = _find_asset(catalog, asset)
+    a = await _resolve_asset(asset)
     if not a or a["asset_type"] != "iceberg_table":
         yield _sse({"type": "text", "text": f"I can run quality checks on Iceberg tables. **{asset}** isn't one I can check."})
         return
@@ -563,7 +747,7 @@ async def _handle_quality(cls: dict, catalog: Optional[list] = None) -> AsyncGen
     yield _step(f"Profiling {a['name']}", "one cohesive quality query")
     yield _step("Running on Cloudera · Impala via Knox", "no data leaves the platform")
     _t = time.monotonic()
-    result = await asyncio.to_thread(run_quality_check, a["name"], a["field_objs"])
+    result = await asyncio.to_thread(run_quality_check, a["name"], a["field_objs"], True)  # write_rollup → real trend
     if (tr := _trace()):
         tr.add("Profile data on Cloudera (Impala via Knox)", "knox", (time.monotonic() - _t) * 1000,
                note="one cohesive DQ query · no data left the platform")
@@ -624,11 +808,9 @@ async def _handle_describe(cls: dict, catalog: Optional[list] = None) -> AsyncGe
     if not asset:
         yield _sse({"type": "text", "text": "Which asset would you like me to describe?"})
         return
-    if catalog is None:
-        catalog = await _load_catalog()
-    a = _find_asset(catalog, asset)
+    a = await _resolve_asset(asset)
     if not a:
-        yield _sse({"type": "text", "text": f"I don't see **{asset}** in the catalog."})
+        yield _sse({"type": "text", "text": f"I couldn't resolve **{asset}**."})
         return
 
     yield _sse({"type": "context", "asset": a["name"], "asset_type": a["asset_type"]})
@@ -659,67 +841,49 @@ async def _stream(req: ChatRequest) -> AsyncGenerator[str, None]:
         # 1) Cheap, text-only verb detection — no model, no catalog needed.
         det_intent = "quality" if _wants_quality(msg) else ("query" if _wants_rows(msg) else None)
 
-        # 2) Load the catalog and (only if a deterministic verb didn't already
-        #    decide the route) run the LLM router IN PARALLEL. They're independent,
-        #    so wall-clock is max(classify, catalog) — not the sum.
-        t_cat = time.monotonic()
-        catalog_task = asyncio.create_task(_load_catalog())
-        classify_task = (
-            asyncio.create_task(_classify(msg, req.context_asset)) if det_intent is None else None
-        )
-
-        catalog = await catalog_task
-        trace.add("Load catalog (Iceberg + Kafka)", "deterministic",
-                  (time.monotonic() - t_cat) * 1000, note=f"{len(catalog)} assets")
-        named = _extract_asset_from_message(catalog, msg)
-
-        # 3) Resolve intent. Deterministic verb + a real asset → skip the LLM entirely.
-        if det_intent and (named or req.context_asset):
+        # 2) Resolve intent WITHOUT loading the catalog (which doesn't scale to 1000s of
+        #    tables). A deterministic verb + an existing context asset settles it with no
+        #    model; otherwise the LLM router decides the intent AND extracts the asset name.
+        if det_intent and req.context_asset:
             intent = det_intent
-            cls = {"intent": intent, "asset": named or req.context_asset or "",
-                   "question": msg, "keywords": []}
+            cls = {"intent": intent, "asset": req.context_asset, "question": msg, "keywords": []}
             route_via = "deterministic"
-            trace.add("Route the question (deterministic verb match)", "deterministic", 0,
+            trace.add("Route the question (deterministic verb + context)", "deterministic", 0,
                       note=f"intent={intent} · model not used")
         else:
-            if classify_task is None:        # verb matched but no asset → we do need the router
-                classify_task = asyncio.create_task(_classify(msg, req.context_asset))
-            cls = await classify_task
-            intent = cls.get("intent", "smalltalk")
-            route_via = "llm"
-            # Safety net: keep the original take-control override.
-            if _wants_quality(msg) and (named or req.context_asset):
-                intent = cls["intent"] = "quality"
-                cls["asset"] = named or req.context_asset or ""
-            elif _wants_rows(msg) and (named or req.context_asset):
-                intent = cls["intent"] = "query"
-                cls["asset"] = named or req.context_asset or ""
+            cls = await _classify(msg, req.context_asset)
+            intent = det_intent or cls.get("intent", "smalltalk")
+            cls["intent"] = intent
+            route_via = "deterministic+llm" if det_intent else "llm"
+            if det_intent:
                 cls["question"] = cls.get("question") or msg
 
-        # 4) Robust asset resolution: trust LLM, else scan message, else context.
+        # 3) Resolve the asset name by RETRIEVAL, never enumeration:
+        #    the LLM's pick → conversation context → a single top-1 index match.
         if intent in ("lineage", "query", "describe", "quality"):
-            resolved = cls.get("asset") or ""
-            if not _find_asset(catalog, resolved):
-                resolved = named or req.context_asset or resolved
-            cls["asset"] = resolved
+            asset_name = cls.get("asset") or req.context_asset or ""
+            if not asset_name:
+                guess = await _search_assets(msg, top_k=1)
+                asset_name = guess[0]["name"] if guess else ""
+            cls["asset"] = asset_name
 
         logger.info(f"[chat] routed intent={intent} via={route_via} "
                     f"asset={cls.get('asset')!r} in {(time.monotonic()-t0)*1000:.0f}ms msg={msg!r}")
 
         if intent == "discover":
-            async for b in _handle_discover(msg, cls, catalog):
+            async for b in _handle_discover(msg, cls):
                 yield b
         elif intent == "lineage":
             async for b in _handle_lineage(cls):
                 yield b
         elif intent == "query":
-            async for b in _handle_query(cls, catalog):
+            async for b in _handle_query(cls):
                 yield b
         elif intent == "quality":
-            async for b in _handle_quality(cls, catalog):
+            async for b in _handle_quality(cls):
                 yield b
         elif intent == "describe":
-            async for b in _handle_describe(cls, catalog):
+            async for b in _handle_describe(cls):
                 yield b
         else:
             async for b in _handle_smalltalk(msg):

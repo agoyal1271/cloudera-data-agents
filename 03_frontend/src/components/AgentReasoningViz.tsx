@@ -86,7 +86,7 @@ function ReasoningStepCard({ step, isActive }: { step: ReasoningStep; isActive: 
                 💬 SYSTEM PROMPT
               </div>
               <div className="bg-agent-dark-surface border border-agent-dark-border rounded p-2">
-                <pre className="text-[11px] text-agent-text-secondary whitespace-pre-wrap break-words font-mono max-h-32 overflow-y-auto">
+                <pre className="text-xs text-agent-text-secondary whitespace-pre-wrap break-words font-mono max-h-32 overflow-y-auto">
                   {step.systemPrompt}
                 </pre>
               </div>
@@ -100,7 +100,7 @@ function ReasoningStepCard({ step, isActive }: { step: ReasoningStep; isActive: 
                 📥 INPUT
               </div>
               <div className="bg-agent-dark-surface border border-agent-dark-border rounded p-2">
-                <pre className="text-[11px] text-agent-text-secondary whitespace-pre-wrap break-words font-mono max-h-24 overflow-y-auto">
+                <pre className="text-xs text-agent-text-secondary whitespace-pre-wrap break-words font-mono max-h-24 overflow-y-auto">
                   {typeof step.input === 'string' ? step.input : JSON.stringify(step.input, null, 2)}
                 </pre>
               </div>
@@ -126,7 +126,7 @@ function ReasoningStepCard({ step, isActive }: { step: ReasoningStep; isActive: 
                 📤 OUTPUT
               </div>
               <div className="bg-green-500/5 border border-green-500/20 rounded p-2">
-                <pre className="text-[11px] text-green-300 whitespace-pre-wrap break-words font-mono max-h-32 overflow-y-auto">
+                <pre className="text-xs text-green-300 whitespace-pre-wrap break-words font-mono max-h-32 overflow-y-auto">
                   {typeof step.output === 'string' ? step.output : JSON.stringify(step.output, null, 2)}
                 </pre>
               </div>

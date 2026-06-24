@@ -449,7 +449,7 @@ export function AssetDetailPanel({
           >
             {tab.label}
             {tab.badge !== undefined && tab.badge !== null && (
-              <span className={`ml-1.5 text-[10px] px-1 py-0.5 rounded font-bold ${
+              <span className={`ml-1.5 text-xs px-1 py-0.5 rounded font-bold ${
                 typeof tab.badge === 'number'
                   ? `${getScoreColor(tab.badge as number)} bg-agent-dark-border`
                   : 'text-amber-400 bg-agent-dark-border'
@@ -506,7 +506,7 @@ export function AssetDetailPanel({
                         <span className={`font-mono font-semibold ${isPii ? 'text-red-300' : 'text-agent-text-primary'}`}>
                           {field.name}
                         </span>
-                        {isPii && <span className="ml-2 text-[10px] text-red-400">PII</span>}
+                        {isPii && <span className="ml-2 text-xs text-red-400">PII</span>}
                       </div>
                       <span className="text-agent-text-secondary">{field.type}</span>
                     </div>
@@ -1085,7 +1085,7 @@ function AskAssetPanel({ asset }: { asset: DiscoveredAsset }) {
               <button
                 key={eng}
                 onClick={() => handleEngineChange(eng)}
-                className={`text-[10px] px-2 py-1 rounded font-semibold transition-colors ${
+                className={`text-xs px-2 py-1 rounded font-semibold transition-colors ${
                   engine === eng
                     ? 'bg-agent-orange text-white'
                     : 'bg-agent-dark-border text-agent-text-secondary hover:text-agent-text-primary'
@@ -1129,7 +1129,7 @@ function AskAssetPanel({ asset }: { asset: DiscoveredAsset }) {
                 className="absolute top-2 right-2 p-1.5 bg-agent-dark-border hover:bg-agent-dark-border/80 rounded transition-colors"
               >
                 {copied
-                  ? <span className="text-[10px] text-green-400 px-1">Copied</span>
+                  ? <span className="text-xs text-green-400 px-1">Copied</span>
                   : <Copy size={11} className="text-agent-text-secondary" />}
               </button>
             </div>
@@ -1156,7 +1156,7 @@ function AskAssetPanel({ asset }: { asset: DiscoveredAsset }) {
               <div className="p-3 text-xs text-agent-text-secondary">No rows returned.</div>
             ) : (
               <div className="border border-agent-dark-border rounded-lg overflow-hidden">
-                <div className="flex items-center justify-between px-3 py-2 bg-agent-dark-border/50 text-[10px] text-agent-text-secondary">
+                <div className="flex items-center justify-between px-3 py-2 bg-agent-dark-border/50 text-xs text-agent-text-secondary">
                   <span>{result.row_count} row{result.row_count !== 1 ? 's' : ''}</span>
                   <span>executed on {result.executed_on ?? 'impala'}</span>
                 </div>

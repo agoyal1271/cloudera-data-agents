@@ -35,7 +35,7 @@ export type ChatBlock =
   | { type: 'lineage'; asset: string; upstream: LineageNode[]; downstream: LineageNode[]; edge_count: number; graph?: LineageGraphData }
   | { type: 'sql_result'; asset: string; sql: string; columns: string[]; rows: string[][]; row_count?: number; executed_on?: string; error?: string }
   | { type: 'schema'; asset: string; asset_type: string; fields: Array<{ name: string; type?: string }> }
-  | { type: 'quality'; asset: string; overall_score: number; counts: { pass: number; warn: number; fail: number }; checks: QualityCheck[]; total_rows: number; trend: QualityTrend | null; root_cause: RootCause | null; written_to_om: boolean }
+  | { type: 'quality'; asset: string; overall_score: number; counts: { pass: number; warn: number; fail: number }; checks: QualityCheck[]; total_rows: number; trend: QualityTrend | null; root_cause: RootCause | null; written_to_om: boolean; ambient?: boolean }
   | { type: 'caveat'; asset: string; level: string; direction: string; text: string }
   | { type: 'context'; asset: string; asset_type?: string }
   | { type: 'provenance'; spans: ProvenanceSpan[]; summary: ProvenanceSummary }

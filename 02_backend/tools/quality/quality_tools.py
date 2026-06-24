@@ -297,31 +297,8 @@ def quality_trend(asset: str, days: int = 14) -> Optional[dict]:
     }
 
 
-# ── Demo seeding — historical rollup rows so trends have something to show ─────
-
-def seed_history(asset: str, start_score: float, end_score: float,
-                 days: int = 14, driver: str = "") -> int:
-    """Insert one rollup row per day for the last `days` days, interpolating the
-    score from start (oldest) to end (newest). Demo helper only."""
-    from datetime import timedelta
-    now = datetime.now(timezone.utc)
-    store = _load_store()
-    rows = []
-    for d in range(days):
-        frac = d / max(days - 1, 1)
-        score = round(start_score + (end_score - start_score) * frac, 1)
-        ts = now - timedelta(days=(days - 1 - d))
-        fail = 1 if score < 85 else 0
-        warn = 2 if score < 92 else 1
-        passes = max(0, 10 - warn - fail)
-        rows.append({
-            "timestamp": ts.isoformat(), "score": score,
-            "driver": driver if score < 92 else "",
-            "pass": passes, "warn": warn, "fail": fail,
-        })
-    store[asset] = rows  # replace history for this asset
-    _save_store(store)
-    return len(rows)
+# Trend history is built only from real check runs (run_quality_check write_rollup),
+# never from a seeded demo baseline — so the trend always reflects measured data.
 
 
 # ── Tool: write quality back to OpenMetadata (column profile time-series) ──────

@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { LayoutDashboard, Radar, Pin, Wrench, Shield, Heart, Brain, Gavel } from 'lucide-react';
+import { LayoutDashboard, Radar, Pin, Wrench, Shield, Heart, Brain, Gavel, Workflow } from 'lucide-react';
 import { AgentDashboard } from './components/AgentDashboard/AgentDashboard';
+import { Orchestrator } from './components/Orchestrator/Orchestrator';
 import { ScoutWorkspace } from './components/SourceScout/ScoutWorkspace';
 import { PipelineBuilder } from './components/PipelineBuilder';
 import { QualityGuardian } from './components/QualityGuardian';
@@ -10,10 +11,11 @@ import { MetadataCurator } from './components/MetadataCurator';
 import { Workspace } from './components/Workspace/Workspace';
 import { useWorkspace } from './hooks/useWorkspace';
 
-type View = 'dashboard' | 'source_scout' | 'pipeline_builder' | 'quality_guardian' | 'pipeline_healer' | 'semantic_mapper' | 'metadata_curator' | 'workspace';
+type View = 'dashboard' | 'orchestrator' | 'source_scout' | 'pipeline_builder' | 'quality_guardian' | 'pipeline_healer' | 'semantic_mapper' | 'metadata_curator' | 'workspace';
 
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard },
+  { id: 'orchestrator', label: 'Orchestrator', Icon: Workflow },
   { id: 'source_scout', label: 'Source Scout', Icon: Radar },
   { id: 'pipeline_builder', label: 'Pipeline Builder', Icon: Wrench },
   { id: 'quality_guardian', label: 'Quality Guardian', Icon: Shield },
@@ -88,6 +90,9 @@ export default function App() {
           </div>
         )}
         {/* Keep agents mounted — state persists across tab switches */}
+        <div className={view === 'orchestrator' ? 'h-full' : 'hidden'}>
+          <Orchestrator />
+        </div>
         <div className={view === 'source_scout' ? 'h-full' : 'hidden'}>
           <ScoutWorkspace />
         </div>

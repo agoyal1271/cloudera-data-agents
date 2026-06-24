@@ -487,7 +487,7 @@ Question: {req.question}"""
     try:
         llm = ChatOpenAI(
             base_url=LLM_BASE_URL, model=LLM_MODEL, api_key=LLM_API_KEY,
-            temperature=0.1,
+            temperature=0.1, timeout=45, max_retries=0,   # never hang on a stalled model
         )
         response = await llm.ainvoke([
             SystemMessage(content="You generate precise SQL queries. Return only the SQL statement."),

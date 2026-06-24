@@ -127,7 +127,7 @@ function ActivityLogEntry({ time, action, target, status }: ActivityLogEntryProp
           <span className="text-agent-text-secondary mx-1">·</span>
           <span className="text-agent-text-secondary">{target}</span>
         </p>
-        <p className="text-agent-text-secondary text-[10px] mt-0.5">{time}</p>
+        <p className="text-agent-text-secondary text-xs mt-0.5">{time}</p>
       </div>
     </div>
   );

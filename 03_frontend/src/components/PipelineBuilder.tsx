@@ -423,7 +423,7 @@ export function PipelineBuilder() {
                 {showJson ? 'Hide' : 'Show'} raw flow JSON
               </summary>
               <pre
-                className="mt-2 p-3 bg-[#0B1520] border border-[#1e3a55] rounded overflow-x-auto max-h-96 font-mono text-[11px] leading-snug"
+                className="mt-2 p-3 bg-[#0B1520] border border-[#1e3a55] rounded overflow-x-auto max-h-96 font-mono text-xs leading-snug"
                 onClick={() => setShowJson(!showJson)}
               >
                 {JSON.stringify(result.flow, null, 2)}
@@ -445,7 +445,7 @@ export function PipelineBuilder() {
 function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div className="bg-[#162840] border border-[#1e3a55] rounded p-3">
-      <div className="text-[10px] uppercase tracking-wide text-[#6a8fa8]">{label}</div>
+      <div className="text-xs uppercase tracking-wide text-[#6a8fa8]">{label}</div>
       <div className="text-lg font-semibold mt-0.5">{value}</div>
     </div>
   );

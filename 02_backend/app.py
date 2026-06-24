@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from routers import agents, health, nl_to_code, registry, knox, pipeline, openmetadata, scout_chat, quality
+from routers import agents, health, nl_to_code, registry, knox, pipeline, openmetadata, scout_chat, quality, quality_guardian, catalog, supervisor, analyst
 from middleware.jwt_identity import JWTIdentityMiddleware
 
 DEBUG_LOG = "/tmp/cloudera_agents_debug.log"
@@ -135,6 +135,10 @@ app.include_router(pipeline.router)
 app.include_router(openmetadata.router)
 app.include_router(scout_chat.router)
 app.include_router(quality.router)
+app.include_router(quality_guardian.router)
+app.include_router(catalog.router)
+app.include_router(supervisor.router)
+app.include_router(analyst.router)
 
 # Serve frontend build if it exists
 FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "..", "03_frontend", "dist")

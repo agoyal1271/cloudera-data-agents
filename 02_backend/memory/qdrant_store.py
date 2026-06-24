@@ -9,14 +9,28 @@ Collections:
 import json
 import logging
 import os
+import uuid
 from typing import Any, Optional, List
 
 logger = logging.getLogger(__name__)
+
+# Deterministic, stable point IDs. Python's built-in hash() randomizes string
+# hashing per process (PYTHONHASHSEED), so hash(asset_id) produced a DIFFERENT id
+# every restart → re-indexing duplicated assets instead of overwriting them.
+# uuid5 is a pure function of the string, so the same asset always maps to the
+# same point and re-index = upsert (no duplicates).
+def _stable_id(asset_id: str) -> str:
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, asset_id))
 
 _client = None
 _collection_assets = None
 _collection_catalog = None
 _embed_fn = None
+
+# Embedding dimension MUST match the embed model: nomic-embed-text → 768.
+# (A wrong value here creates the collection at the wrong size, and every query
+# vector then mismatches it → Qdrant rejects the search → empty results.)
+EMBED_DIM = int(os.getenv("CATALOG_EMBED_DIM", "768"))
 
 
 def _init_client():
@@ -55,7 +69,7 @@ def _get_embeddings(texts: List[str]) -> List[List[float]]:
             }
         except Exception as e:
             logger.warning(f"[embeddings] config failed: {e}")
-            return [[0.0] * 384] * len(texts)  # fallback embeddings
+            return [[0.0] * EMBED_DIM] * len(texts)  # fallback embeddings
 
     try:
         import requests
@@ -72,15 +86,15 @@ def _get_embeddings(texts: List[str]) -> List[List[float]]:
                 embeddings.append(resp.json()["embedding"])
             else:
                 logger.warning(f"[embeddings] request failed: {resp.status_code}")
-                embeddings.append([0.0] * 384)
+                embeddings.append([0.0] * EMBED_DIM)
 
         return embeddings
     except Exception as e:
         logger.warning(f"[embeddings] generation failed: {e}")
-        return [[0.0] * 384] * len(texts)
+        return [[0.0] * EMBED_DIM] * len(texts)
 
 
-def _ensure_collection(name: str, vector_size: int = 384):
+def _ensure_collection(name: str, vector_size: int = EMBED_DIM):
     """Create collection if it doesn't exist."""
     client = _init_client()
     if not client:
@@ -126,7 +140,7 @@ def store_asset(asset: dict[str, Any]) -> bool:
         embeddings = _get_embeddings([description])
 
         point = PointStruct(
-            id=hash(asset_id) % (2**63),  # Ensure positive int
+            id=_stable_id(asset_id),
             vector=embeddings[0],
             payload={
                 "asset_id": asset_id,
@@ -228,7 +242,7 @@ def index_asset(asset: dict[str, Any]) -> bool:
         # pii_detection = detect_pii_fields(fields, threshold=0.65)
 
         point = PointStruct(
-            id=hash(asset_id) % (2**63),
+            id=_stable_id(asset_id),
             vector=embeddings[0],
             payload={
                 "asset_id": asset_id,
@@ -275,17 +289,38 @@ def search_catalog(query: str, limit: int = 10, asset_type: Optional[str] = None
                 ]
             )
 
-        # Use search_points with correct Qdrant API
-        results = client.search(
-            collection_name="data_catalog",
-            query_vector=embeddings[0],
-            limit=limit,
-            query_filter=filter_condition if filter_condition else None,
-        )
+        # qdrant-client ≥ 1.12 removed .search() in favor of .query_points().
+        # Guard so we work on both old and new clients (the installed 1.18 has no
+        # .search → the old call silently returned [] and broke every catalog search).
+        # Over-fetch so that de-duping (legacy collections can hold duplicate points
+        # for the same asset) still leaves `limit` distinct results.
+        fetch = min(max(limit * 4, limit), 200)
+        if hasattr(client, "query_points"):
+            results = client.query_points(
+                collection_name="data_catalog",
+                query=embeddings[0],
+                limit=fetch,
+                query_filter=filter_condition if filter_condition else None,
+                with_payload=True,
+            ).points
+        else:
+            results = client.search(
+                collection_name="data_catalog",
+                query_vector=embeddings[0],
+                limit=fetch,
+                query_filter=filter_condition if filter_condition else None,
+            )
 
         assets = []
+        seen: set[str] = set()
         for result in results:
             payload = result.payload if hasattr(result, 'payload') else result.get('payload', {})
+            # Collapse duplicate points for the same asset — results are score-ordered,
+            # so the first (best) wins.
+            key = payload.get("asset_id") or payload.get("name", "")
+            if key in seen:
+                continue
+            seen.add(key)
             assets.append(
                 {
                     "asset_id": payload.get("asset_id", ""),
@@ -297,6 +332,8 @@ def search_catalog(query: str, limit: int = 10, asset_type: Optional[str] = None
                     "score": result.score if hasattr(result, 'score') else result.get('score', 0),
                 }
             )
+            if len(assets) >= limit:
+                break
 
         return assets
     except Exception as e:

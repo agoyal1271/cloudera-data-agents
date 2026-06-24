@@ -172,7 +172,7 @@ export function NLToCode() {
         {/* Model picker */}
         <div className="flex items-center gap-2">
           {catalogTables.length > 0 && (
-            <div className="flex items-center gap-1 text-[10px] text-slate-500">
+            <div className="flex items-center gap-1 text-xs text-slate-500">
               <span className="text-teal-500">🧊</span>
               {catalogTables.map(t => (
                 <span key={t} className="bg-teal-900/40 text-teal-400 px-2 py-0.5 rounded-full">{t}</span>
@@ -180,7 +180,7 @@ export function NLToCode() {
             </div>
           )}
           <div className="flex items-center gap-1.5 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1">
-            <span className="text-[10px] text-slate-500">Model</span>
+            <span className="text-xs text-slate-500">Model</span>
             <select
               value={selectedModel}
               onChange={e => setSelectedModel(e.target.value)}
@@ -236,28 +236,28 @@ export function NLToCode() {
 
             {/* Question echo */}
             <div className="bg-slate-800 rounded-xl border border-slate-700 p-3 flex-shrink-0">
-              <div className="text-[9px] uppercase tracking-wider text-slate-500 mb-1">You asked</div>
+              <div className="text-xs uppercase tracking-wider text-slate-500 mb-1">You asked</div>
               <p className="text-sm text-white leading-snug">"{submitted}"</p>
             </div>
 
             {/* Live token stream — Ollama thinking */}
             <div className="bg-slate-900 rounded-xl border border-slate-700 flex flex-col flex-shrink-0" style={{ maxHeight: '180px' }}>
               <div className="px-3 py-2 border-b border-slate-700 flex items-center gap-2 flex-shrink-0">
-                <span className="text-[9px] uppercase tracking-wider text-slate-500">
+                <span className="text-xs uppercase tracking-wider text-slate-500">
                   {activeModel ? `${activeModel} — raw output` : 'Waiting for model...'}
                 </span>
                 {streaming && !llmStats && (
                   <span className="ml-auto w-1.5 h-1.5 bg-orange-400 rounded-full animate-pulse" />
                 )}
                 {llmStats && (
-                  <span className="ml-auto text-[9px] text-emerald-400 font-mono">
+                  <span className="ml-auto text-xs text-emerald-400 font-mono">
                     {llmStats.tokens} tok · {llmStats.elapsed_s}s · {llmStats.tokens_per_s} t/s
                   </span>
                 )}
               </div>
               <pre
                 ref={tokensRef}
-                className="flex-1 overflow-y-auto p-3 text-[10px] font-mono text-orange-300 leading-relaxed whitespace-pre-wrap min-h-0"
+                className="flex-1 overflow-y-auto p-3 text-xs font-mono text-orange-300 leading-relaxed whitespace-pre-wrap min-h-0"
                 style={{ maxHeight: '130px' }}
               >
                 {rawTokens || (streaming ? '...' : '')}
@@ -267,7 +267,7 @@ export function NLToCode() {
             {/* Translation chain */}
             <div className="bg-slate-900 rounded-xl border border-slate-700 flex-1 flex flex-col min-h-0">
               <div className="px-3 py-2 border-b border-slate-700 flex items-center gap-2 flex-shrink-0">
-                <span className="text-[9px] uppercase tracking-wider text-slate-500">How the model interpreted this</span>
+                <span className="text-xs uppercase tracking-wider text-slate-500">How the model interpreted this</span>
                 {streaming && result && <span className="w-1.5 h-1.5 bg-orange-400 rounded-full animate-pulse ml-auto" />}
               </div>
               <div className="flex-1 overflow-y-auto p-3 min-h-0">
@@ -302,13 +302,13 @@ export function NLToCode() {
               ))}
               <div className="ml-auto flex items-center gap-3">
                 {streaming && (
-                  <span className="text-[10px] text-orange-400 flex items-center gap-1">
+                  <span className="text-xs text-orange-400 flex items-center gap-1">
                     <span className="w-1.5 h-1.5 bg-orange-400 rounded-full animate-pulse" />
                     {activeModel || 'model'} is thinking...
                   </span>
                 )}
                 {result && !streaming && (
-                  <span className="text-[10px] text-emerald-400">✓ Done</span>
+                  <span className="text-xs text-emerald-400">✓ Done</span>
                 )}
               </div>
             </div>
@@ -335,14 +335,14 @@ export function NLToCode() {
 function Step({ done, loading, label, detail }: { done: boolean; loading: boolean; label: string; detail?: string }) {
   return (
     <div className="flex gap-2.5 items-start">
-      <div className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 text-[9px] ${
+      <div className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 text-xs ${
         done ? 'bg-emerald-500 text-white' : loading ? 'bg-orange-500 animate-pulse' : 'bg-slate-700'
       }`}>
         {done ? '✓' : loading ? '…' : '·'}
       </div>
       <div>
-        <div className={`text-[11px] font-medium ${done ? 'text-white' : 'text-slate-500'}`}>{label}</div>
-        {detail && <div className="text-[10px] text-slate-400 mt-0.5 leading-snug">{detail}</div>}
+        <div className={`text-xs font-medium ${done ? 'text-white' : 'text-slate-500'}`}>{label}</div>
+        {detail && <div className="text-xs text-slate-400 mt-0.5 leading-snug">{detail}</div>}
       </div>
     </div>
   );
@@ -353,10 +353,10 @@ function TranslationRow({ step, isLast }: { step: TranslationStep; isLast: boole
   return (
     <div className="flex flex-col">
       <div className={`rounded-lg p-2.5 ${style.bg}`}>
-        <div className="text-[8px] uppercase tracking-wider text-slate-500 mb-0.5">{style.label} {step.label}</div>
-        <div className={`text-[11px] font-mono leading-snug ${style.text}`}>{step.value}</div>
+        <div className="text-xs uppercase tracking-wider text-slate-500 mb-0.5">{style.label} {step.label}</div>
+        <div className={`text-xs font-mono leading-snug ${style.text}`}>{step.value}</div>
       </div>
-      {!isLast && <div className="flex justify-center py-0.5 text-slate-600 text-[10px]">↓</div>}
+      {!isLast && <div className="flex justify-center py-0.5 text-slate-600 text-xs">↓</div>}
     </div>
   );
 }

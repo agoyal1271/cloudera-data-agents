@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Radar, ArrowUp, Database, MessageSquare, GitBranch, Play, ChevronDown, ChevronRight, Table2, Sparkles } from 'lucide-react';
-import { streamChat, type ChatBlock, type AssetCard, type LineageNode } from '../../api/scout';
+import { Radar, ArrowUp, Database, MessageSquare, GitBranch, Play, ChevronDown, ChevronRight, Table2, Sparkles, ShieldCheck } from 'lucide-react';
+import { streamChat, type ChatBlock, type AssetCard, type LineageNode, type QualityCheck, type QualityTrend } from '../../api/scout';
 
 // ── Conversation model ────────────────────────────────────────────────────────
 type Turn =
@@ -185,6 +185,7 @@ function BlockView({ block, onAsk }: { block: ChatBlock; onAsk: (q: string) => v
     case 'lineage':    return <LineageBlock asset={block.asset} upstream={block.upstream} downstream={block.downstream} edgeCount={block.edge_count} onAsk={onAsk} />;
     case 'sql_result': return <SqlResultBlock block={block} />;
     case 'schema':     return <SchemaBlock asset={block.asset} fields={block.fields} onAsk={onAsk} />;
+    case 'quality':    return <QualityBlock block={block} onAsk={onAsk} />;
     default:           return null;
   }
 }
@@ -242,7 +243,7 @@ function AssetsBlock({ assets, onAsk }: { assets: AssetCard[]; onAsk: (q: string
           >
             <div className="flex items-center justify-between mb-1.5">
               <span className="font-mono text-sm text-agent-text-primary truncate">{a.name}</span>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded border font-semibold flex-shrink-0 ml-2 ${badge.cls}`}>{badge.label}</span>
+              <span className={`text-xs px-1.5 py-0.5 rounded border font-semibold flex-shrink-0 ml-2 ${badge.cls}`}>{badge.label}</span>
             </div>
             <div className="text-xs text-agent-text-secondary truncate">
               {a.field_count} field{a.field_count !== 1 ? 's' : ''} · {a.fields.slice(0, 4).join(', ')}{a.fields.length > 4 ? '…' : ''}
@@ -285,7 +286,7 @@ function LineageBlock({ asset, upstream, downstream, edgeCount, onAsk }: {
       <div className="p-4 grid grid-cols-[1fr_auto_1fr] gap-4 items-center">
         {/* upstream */}
         <div>
-          <div className="text-[10px] font-semibold text-blue-300/80 uppercase tracking-wider mb-1">Upstream ({upstream.length})</div>
+          <div className="text-xs font-semibold text-blue-300/80 uppercase tracking-wider mb-1">Upstream ({upstream.length})</div>
           {upstream.length ? upstream.map((n, i) => <LineageNodeRow key={i} node={n} tone="up" />)
             : <div className="text-xs text-agent-text-secondary py-1.5">— none —</div>}
         </div>
@@ -293,12 +294,12 @@ function LineageBlock({ asset, upstream, downstream, edgeCount, onAsk }: {
         <div className="flex flex-col items-center">
           <div className="px-3 py-2 rounded-lg bg-cloudera/15 border border-cloudera/40 text-center">
             <div className="text-xs font-mono font-semibold text-cloudera whitespace-nowrap">{asset.split('.').pop()}</div>
-            <div className="text-[10px] text-agent-text-secondary">this asset</div>
+            <div className="text-xs text-agent-text-secondary">this asset</div>
           </div>
         </div>
         {/* downstream */}
         <div>
-          <div className="text-[10px] font-semibold text-green-300/80 uppercase tracking-wider mb-1">Downstream ({downstream.length})</div>
+          <div className="text-xs font-semibold text-green-300/80 uppercase tracking-wider mb-1">Downstream ({downstream.length})</div>
           {downstream.length ? downstream.map((n, i) => <LineageNodeRow key={i} node={n} tone="down" />)
             : <div className="text-xs text-agent-text-secondary py-1.5">— none —</div>}
         </div>
@@ -368,13 +369,70 @@ function SchemaBlock({ asset, fields, onAsk }: { asset: string; fields: Array<{ 
         {fields.map((f, i) => (
           <div key={i} className="flex items-baseline gap-2 min-w-0">
             <span className="text-xs font-mono text-agent-text-primary truncate">{f.name}</span>
-            <span className="text-[10px] text-agent-text-secondary ml-auto flex-shrink-0">{f.type ?? ''}</span>
+            <span className="text-xs text-agent-text-secondary ml-auto flex-shrink-0">{f.type ?? ''}</span>
           </div>
         ))}
       </div>
       <div className="px-4 pb-3 flex gap-3">
         <button onClick={() => onAsk(`Show me the lineage of ${asset}`)} className="text-xs text-cloudera hover:underline">Lineage →</button>
         <button onClick={() => onAsk(`Show 10 rows from ${asset}`)} className="text-xs text-cloudera hover:underline">Sample rows →</button>
+      </div>
+    </div>
+  );
+}
+
+// Inline data-quality insight — rendered both for an explicit "check quality" ask and
+// for the ambient signal that travels with a query answer. Same card, one renderer.
+function QualityBlock({ block, onAsk }: { block: Extract<ChatBlock, { type: 'quality' }>; onAsk: (q: string) => void }) {
+  const score = block.overall_score ?? 0;
+  const c = block.counts || { pass: 0, warn: 0, fail: 0 };
+  const scoreCls = score >= 90 ? 'text-green-400' : score >= 75 ? 'text-amber-400' : 'text-red-400';
+  const issues: QualityCheck[] = (block.checks || [])
+    .filter(ch => ch.status !== 'pass')
+    .sort((a, b) => (b.metric_value ?? 0) - (a.metric_value ?? 0))
+    .slice(0, 3);
+  const t: QualityTrend | null = block.trend;
+  return (
+    <div className="border border-agent-dark-border rounded-xl overflow-hidden bg-agent-dark-surface">
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-agent-dark-border">
+        <ShieldCheck size={14} className="text-agent-teal" />
+        <span className="text-xs font-semibold text-agent-text-primary uppercase tracking-wider">Data quality</span>
+        {block.ambient && <span className="text-xs text-agent-text-secondary">· auto-checked</span>}
+        <span className={`ml-auto text-base font-bold ${scoreCls}`}>{score}<span className="text-xs text-agent-text-secondary">/100</span></span>
+      </div>
+      <div className="px-4 py-3 space-y-2">
+        <div className="flex gap-3 text-xs text-agent-text-secondary">
+          <span className="text-green-400">{c.pass} pass</span>
+          <span className="text-amber-400">{c.warn} warn</span>
+          <span className="text-red-400">{c.fail} fail</span>
+          {typeof block.total_rows === 'number' && <span>· {block.total_rows.toLocaleString()} rows</span>}
+        </div>
+        {issues.length > 0 ? (
+          <div className="space-y-1">
+            {issues.map((ch, i) => (
+              <div key={i} className="flex items-center justify-between text-xs gap-2">
+                <span className="text-agent-text-primary truncate"><span className="font-mono">{ch.column}</span> · {ch.check}</span>
+                <span className="flex items-center gap-2 text-agent-text-secondary flex-shrink-0">{ch.label}
+                  <span className={`px-1.5 py-0.5 rounded text-xs font-bold uppercase ${ch.status === 'fail' ? 'bg-red-500/15 text-red-400' : 'bg-amber-500/15 text-amber-400'}`}>{ch.status}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-xs text-green-400">All checks pass — no completeness or uniqueness issues.</div>
+        )}
+        {t && t.direction === 'down' && (
+          <div className="text-xs text-amber-400">↓ Trending down {t.baseline}→{t.current} over {t.window_days}d · {t.driver}</div>
+        )}
+        {block.root_cause && (
+          <div className="text-xs text-agent-text-secondary">Likely upstream cause: <span className="font-mono text-agent-text-primary">{block.root_cause.asset}</span> ({block.root_cause.delta})</div>
+        )}
+        <div className="flex items-center gap-3 pt-1">
+          {block.ambient && (
+            <button onClick={() => onAsk(`Check data quality of ${block.asset}`)} className="text-xs text-cloudera hover:underline">Full quality check →</button>
+          )}
+          {block.written_to_om && <span className="text-xs text-agent-text-secondary">✓ written to OpenMetadata</span>}
+        </div>
       </div>
     </div>
   );

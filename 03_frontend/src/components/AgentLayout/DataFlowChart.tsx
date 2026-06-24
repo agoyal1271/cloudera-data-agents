@@ -71,7 +71,7 @@ export function DataFlowChart() {
             <div key={idx} className="text-center text-xs">
               <p className="font-medium text-agent-text-primary mb-1">{step.label}</p>
               <p
-                className={`text-[10px] ${
+                className={`text-xs ${
                   step.status === 'active'
                     ? 'text-agent-orange font-semibold'
                     : 'text-agent-text-secondary'

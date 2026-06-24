@@ -41,7 +41,7 @@ export function AssetCard({ asset, isPinned, onPin, onUnpin, onSelect }: Props) 
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-xl flex-shrink-0">{style.icon}</span>
           <div className="min-w-0">
-            <div className="text-[10px] uppercase tracking-wider text-slate-400">{style.label}</div>
+            <div className="text-xs uppercase tracking-wider text-slate-400">{style.label}</div>
             <div className="text-sm font-bold text-white truncate" title={asset.name}>{asset.name}</div>
           </div>
         </div>
@@ -59,10 +59,10 @@ export function AssetCard({ asset, isPinned, onPin, onUnpin, onSelect }: Props) 
             {isPinned ? '📌' : '📍'}
           </button>
           {asset.pii_risk && (
-            <span className="text-[9px] bg-red-900 text-red-300 px-1.5 py-0.5 rounded font-semibold">⚠ PII</span>
+            <span className="text-xs bg-red-900 text-red-300 px-1.5 py-0.5 rounded font-semibold">⚠ PII</span>
           )}
           {(meta.mock as boolean) && (
-            <span className="text-[9px] bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded">MOCK</span>
+            <span className="text-xs bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded">MOCK</span>
           )}
         </div>
       </div>
@@ -71,7 +71,7 @@ export function AssetCard({ asset, isPinned, onPin, onUnpin, onSelect }: Props) 
       {metaBits.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {metaBits.map((b, i) => (
-            <span key={i} className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full">{b}</span>
+            <span key={i} className="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full">{b}</span>
           ))}
         </div>
       )}
@@ -80,8 +80,8 @@ export function AssetCard({ asset, isPinned, onPin, onUnpin, onSelect }: Props) 
       {fields.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[9px] text-slate-500 uppercase tracking-wider">Schema</span>
-            <span className="text-[9px] text-slate-600">{fields.length} column{fields.length !== 1 ? 's' : ''}</span>
+            <span className="text-xs text-slate-500 uppercase tracking-wider">Schema</span>
+            <span className="text-xs text-slate-600">{fields.length} column{fields.length !== 1 ? 's' : ''}</span>
           </div>
           <div className="max-h-40 overflow-y-auto flex flex-col gap-px pr-0.5">
             {fields.map((f, i) => {
@@ -89,7 +89,7 @@ export function AssetCard({ asset, isPinned, onPin, onUnpin, onSelect }: Props) 
               return (
                 <div
                   key={i}
-                  className={`flex items-center justify-between px-2 py-[5px] rounded text-[10px] ${
+                  className={`flex items-center justify-between px-2 py-[5px] rounded text-xs ${
                     isPii
                       ? 'bg-red-950/50 border border-red-800/40'
                       : i % 2 === 0 ? 'bg-slate-900/70' : 'bg-slate-800/40'
@@ -97,9 +97,9 @@ export function AssetCard({ asset, isPinned, onPin, onUnpin, onSelect }: Props) 
                 >
                   <span className={`font-mono font-medium ${isPii ? 'text-red-300' : 'text-slate-200'}`}>
                     {f.name}
-                    {isPii && <span className="ml-1 text-red-400 text-[8px]">⚠</span>}
+                    {isPii && <span className="ml-1 text-red-400 text-xs">⚠</span>}
                   </span>
-                  <span className="text-slate-500 font-mono text-[9px] ml-3 flex-shrink-0">
+                  <span className="text-slate-500 font-mono text-xs ml-3 flex-shrink-0">
                     {f.type ?? ''}
                   </span>
                 </div>
@@ -114,14 +114,14 @@ export function AssetCard({ asset, isPinned, onPin, onUnpin, onSelect }: Props) 
         <div className="border-t border-slate-700/60 pt-2 mt-auto">
           <div className="flex items-center justify-between gap-2">
             <div className="flex-1 min-w-0">
-              <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">Pipeline</div>
+              <div className="text-xs text-slate-500 uppercase tracking-wider mb-0.5">Pipeline</div>
               <div className={`text-sm font-bold ${pipelineColor}`}>→ {pipeline}</div>
             </div>
-            <button onClick={e => { e.stopPropagation(); onSelect(); }} className="text-[10px] text-orange-400 hover:text-orange-300 font-semibold flex-shrink-0">
+            <button onClick={e => { e.stopPropagation(); onSelect(); }} className="text-xs text-orange-400 hover:text-orange-300 font-semibold flex-shrink-0">
               Explore →
             </button>
           </div>
-          <p className="text-[10px] text-slate-400 mt-1 leading-relaxed line-clamp-2">
+          <p className="text-xs text-slate-400 mt-1 leading-relaxed line-clamp-2">
             {asset.pipeline_suggestion.reasoning}
           </p>
         </div>

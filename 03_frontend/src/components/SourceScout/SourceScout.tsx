@@ -269,7 +269,7 @@ export function SourceScout() {
               {/* Namespace header — sticky */}
               <div className="sticky top-0 bg-agent-dark-bg/95 backdrop-blur-sm px-4 py-2 text-xs font-semibold text-agent-text-secondary uppercase tracking-wider border-b border-agent-dark-border/50 flex items-center justify-between">
                 <span>{namespace}</span>
-                <span className="text-[10px] font-normal">{groupAssets.length}</span>
+                <span className="text-xs font-normal">{groupAssets.length}</span>
               </div>
               {groupAssets.map(asset => (
                 <AssetListItem

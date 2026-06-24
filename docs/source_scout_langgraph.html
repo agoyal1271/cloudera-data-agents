@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How Source Scout uses LangGraph</title>
+<style>
+  :root{
+    --bg:#0f1419; --panel:#1a2129; --panel2:#222b35; --ink:#e6edf3; --muted:#9aa7b4;
+    --line:#30363d; --accent:#4ea1ff; --state:#5db0ff; --stream:#56d364; --warn:#e3b341;
+    --pink:#ff7b9c; --code:#0b0f14; --reducer:#ffd33d;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1040px;margin:0 auto;padding:40px 24px 96px}
+  h1{font-size:30px;line-height:1.25;margin:0 0 6px;letter-spacing:-.01em}
+  h2{font-size:21px;margin:48px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--line);letter-spacing:-.01em}
+  h3{font-size:16px;margin:22px 0 8px;color:var(--ink)}
+  p{margin:10px 0;color:var(--ink)}
+  .sub{color:var(--muted);font-size:16px;margin:0 0 8px}
+  code,.mono{font-family:"SF Mono",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace}
+  code{background:#000;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:13.5px;color:#cfe6ff}
+  .lead{font-size:17px;color:var(--muted);max-width:78ch}
+  .tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+    padding:3px 9px;border-radius:999px;vertical-align:middle}
+  .tag.state{background:rgba(93,176,255,.14);color:var(--state);border:1px solid rgba(93,176,255,.4)}
+  .tag.stream{background:rgba(86,211,100,.13);color:var(--stream);border:1px solid rgba(86,211,100,.4)}
+
+  /* two-channel mental model */
+  .channels{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:18px 0}
+  .chan{border:1px solid var(--line);border-radius:12px;padding:16px 18px;background:var(--panel)}
+  .chan.state{border-color:rgba(93,176,255,.45)}
+  .chan.stream{border-color:rgba(86,211,100,.45)}
+  .chan h3{margin-top:4px;display:flex;align-items:center;gap:9px}
+  .chan ul{margin:8px 0 0;padding-left:18px;color:var(--muted);font-size:14.5px}
+  .chan li{margin:5px 0}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .dot.state{background:var(--state)} .dot.stream{background:var(--stream)}
+
+  /* primitive mapping table */
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14.5px}
+  th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+  td.concept{font-weight:600;white-space:nowrap;color:var(--accent)}
+  td .mono{font-size:13px;color:#cfe6ff;background:var(--code);border:1px solid var(--line);
+    border-radius:5px;padding:2px 6px;display:inline-block}
+  td small{color:var(--muted);display:block;margin-top:4px;font-size:13px;line-height:1.5}
+
+  /* superstep trace */
+  .legend{display:flex;gap:18px;flex-wrap:wrap;margin:10px 0 26px;font-size:13.5px;color:var(--muted)}
+  .legend span{display:flex;align-items:center;gap:7px}
+  .step{position:relative;border:1px solid var(--line);border-radius:14px;background:var(--panel);
+    margin:18px 0;overflow:hidden}
+  .step-head{display:flex;align-items:center;gap:12px;padding:13px 18px;background:var(--panel2);
+    border-bottom:1px solid var(--line)}
+  .ss{font-family:"SF Mono",monospace;font-size:12px;color:var(--bg);background:var(--accent);
+    font-weight:700;border-radius:6px;padding:3px 9px;letter-spacing:.03em}
+  .node{font-family:"SF Mono",monospace;font-weight:700;font-size:15px;color:var(--ink)}
+  .node em{color:var(--muted);font-style:normal;font-weight:400;font-size:13.5px;margin-left:6px}
+  .step-body{display:grid;grid-template-columns:1fr 1fr;gap:0}
+  .col{padding:15px 18px}
+  .col + .col{border-left:1px solid var(--line)}
+  .col h4{margin:0 0 9px;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);
+    display:flex;align-items:center;gap:7px}
+  pre{margin:0;background:var(--code);border:1px solid var(--line);border-radius:9px;padding:12px 13px;
+    overflow-x:auto;font-size:12.5px;line-height:1.55}
+  pre .mono{font-size:12.5px}
+  .k{color:#7ee787} .s{color:#a5d6ff} .n{color:#ffa657} .c{color:#8b949e} .key{color:#79c0ff}
+  .add{color:var(--reducer);font-weight:600}     /* reducer-appended */
+  .chg{color:var(--warn);font-weight:600}        /* changed field */
+  .note{font-size:13.5px;color:var(--muted);margin:9px 0 0}
+  .emit{background:rgba(86,211,100,.07);border:1px solid rgba(86,211,100,.35);border-radius:9px;
+    padding:10px 12px;font-family:"SF Mono",monospace;font-size:12.5px;color:#c9f5cf}
+  .emit b{color:var(--stream)}
+  .route{display:flex;align-items:center;gap:10px;padding:11px 18px;border-top:1px solid var(--line);
+    background:rgba(78,161,255,.05);font-size:13.5px;color:var(--muted)}
+  .route .pill{font-family:"SF Mono",monospace;font-size:12px;border:1px solid var(--line);border-radius:6px;
+    padding:2px 8px;color:#cfe6ff;background:#000}
+  .arrow{color:var(--accent);font-weight:700}
+  .loopback{border-color:rgba(227,179,65,.5)}
+  .loopback .ss{background:var(--warn)}
+
+  .spot{border:1px solid rgba(255,211,61,.4);background:rgba(255,211,61,.06);border-radius:12px;
+    padding:16px 18px;margin:16px 0}
+  .spot h3{margin-top:0;color:var(--reducer)}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:12px 0}
+  .card{border:1px solid var(--line);border-radius:11px;padding:14px 16px;background:var(--panel)}
+  .card.bad{border-color:rgba(255,123,156,.4)} .card.good{border-color:rgba(86,211,100,.4)}
+  .card h3{margin-top:0;font-size:14px}
+  .card.bad h3{color:var(--pink)} .card.good h3{color:var(--stream)}
+  .card pre{font-size:11.5px}
+  .file{font-family:"SF Mono",monospace;font-size:12.5px;color:var(--muted)}
+  .file b{color:var(--accent)}
+  hr{border:0;border-top:1px solid var(--line);margin:28px 0}
+  .foot{color:var(--muted);font-size:13px;margin-top:40px}
+  /* primer / glossary */
+  .callout{border:1px solid rgba(227,179,65,.4);background:rgba(227,179,65,.07);border-radius:10px;
+    padding:13px 16px;margin:16px 0;font-size:14.5px}
+  .callout b{color:var(--warn)}
+  .glos{margin:18px 0;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .gitem{display:grid;grid-template-columns:185px 1fr}
+  .gitem + .gitem{border-top:1px solid var(--line)}
+  .gterm{background:var(--panel2);padding:15px 16px;border-right:1px solid var(--line)}
+  .gterm b{font-family:"SF Mono",monospace;font-size:14.5px;color:var(--accent);display:block;line-height:1.3}
+  .gterm small{color:var(--muted);font-size:11.5px;display:block;margin-top:3px}
+  .gdef{padding:15px 16px}
+  .gdef p{margin:0;font-size:14.5px;color:var(--ink)}
+  .gdef .py{margin-top:9px;font-size:13px;color:var(--muted);line-height:1.55}
+  .gdef .py b{color:var(--stream);font-weight:600}
+  .gdef pre{margin-top:10px}
+  /* optimization visuals */
+  .why{border-left:3px solid var(--accent);background:rgba(78,161,255,.06);padding:12px 16px;
+    border-radius:0 9px 9px 0;margin:16px 0;font-size:15px;color:var(--ink)}
+  .scale{display:flex;flex-direction:column;gap:16px;margin:18px 0 6px}
+  .scrow{display:grid;grid-template-columns:140px 1fr;gap:16px;align-items:center}
+  .scrow .lab{font-family:"SF Mono",monospace;font-size:13.5px;color:var(--ink);text-align:right}
+  .scrow .lab small{display:block;color:var(--muted);font-size:11px;font-family:inherit}
+  .bars{display:flex;flex-direction:column;gap:7px}
+  .bar{display:flex;align-items:center;gap:10px}
+  .bar .tagn{width:34px;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:right}
+  .bar .track{height:17px;border-radius:5px;min-width:6px}
+  .bar.old .track{background:linear-gradient(90deg,#ff7b9c,#e3534f)}
+  .bar.new .track{background:var(--stream)}
+  .bar .v{font-family:"SF Mono",monospace;font-size:12px;color:var(--muted);white-space:nowrap}
+  .optgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0}
+  .opt{border:1px solid var(--line);border-radius:11px;background:var(--panel);padding:14px 16px}
+  .opt h3{margin:0;font-size:14.5px;color:var(--accent);display:flex;gap:9px;align-items:baseline}
+  .opt h3 .num{font-family:"SF Mono",monospace;font-size:11px;color:var(--bg);background:var(--accent);
+    border-radius:5px;padding:1px 6px;font-weight:700}
+  .opt p{font-size:13.5px;color:var(--muted);margin:8px 0 0}
+  .opt .win{display:inline-block;margin-top:10px;font-size:12px;color:var(--stream);
+    background:rgba(86,211,100,.1);border:1px solid rgba(86,211,100,.3);border-radius:6px;padding:2px 9px}
+  .opt code{font-size:12px}
+  @media(max-width:760px){.channels,.step-body,.two,.optgrid,.gitem{grid-template-columns:1fr}
+    .scrow{grid-template-columns:1fr}.scrow .lab{text-align:left}
+    .gterm{border-right:0;border-bottom:1px solid var(--line)}
+    .col+.col{border-left:0;border-top:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>How Source Scout uses LangGraph</h1>
+  <p class="sub mono">02_backend/agents/source_scout/react_agent.py</p>
+  <p class="lead">Not a flowchart — a trace. We follow one real query, <b>“find payment data,”</b>
+  through the actual code and watch the <span class="tag state">graph&nbsp;state</span> object mutate at each
+  step, while a separate <span class="tag stream">SSE&nbsp;stream</span> feeds the browser. The whole point of
+  LangGraph here is that these two things are <em>decoupled</em>.</p>
+
+  <!-- ─────────────────────────────────────────── -->
+  <h2 id="primer">First — the words, for a Python dev new to LangGraph</h2>
+  <p>You know Python; you just haven’t met these terms. None of them are new <i>ideas</i> — each is something you
+  already do by hand, given a name. Two libraries are in play, and it helps to keep them apart:</p>
+  <div class="callout"><b>LangChain</b> = talking to the LLM (the <code>ChatOpenAI</code> client and the
+  <code>SystemMessage</code> / <code>HumanMessage</code> objects). &nbsp; <b>LangGraph</b> = orchestrating the
+  multi-step flow around it (everything in this glossary). Source Scout calls LangChain <i>inside</i> a LangGraph node.</div>
+
+  <div class="glos">
+    <div class="gitem">
+      <div class="gterm"><b>Graph</b><small>StateGraph</small></div>
+      <div class="gdef"><p>The whole flowchart, declared as data instead of nested function calls. You add nodes,
+        wire them with edges, and LangGraph decides what runs next.</p>
+        <p class="py"><b>In plain Python:</b> instead of hard-coding <code>a(); b(); c()</code>, you describe
+        “a → b → c” as a structure you can branch and loop over.</p></div>
+    </div>
+    <div class="gitem">
+      <div class="gterm"><b>State</b><small>a TypedDict</small></div>
+      <div class="gdef"><p>One dictionary handed to every node — the shared memory for a single run.</p>
+        <p class="py"><b>In plain Python:</b> literally a <code>dict</code> with known keys
+        (<code>goal</code>, <code>iteration</code>, <code>messages</code>…). Nodes read it and return changes to it.</p></div>
+    </div>
+    <div class="gitem">
+      <div class="gterm"><b>Node</b><small>an async function</small></div>
+      <div class="gdef"><p>One step of work. It receives the state, does something, and returns a
+        <i>partial</i> dict of just what changed.</p>
+<pre class="mono"><span class="k">async def</span> reason_node(state, writer) <span class="k">-&gt;</span> dict:
+    ...
+    <span class="k">return</span> {<span class="s">"iteration"</span>: state[<span class="s">"iteration"</span>] + <span class="n">1</span>}</pre>
+        <p class="py"><b>In plain Python:</b> just a function. The only convention is the signature
+        <code>(state, writer)</code> and “return what changed.”</p></div>
+    </div>
+    <div class="gitem">
+      <div class="gterm"><b>Reducer</b><small>a per-field merge rule</small></div>
+      <div class="gdef"><p>How a node’s return value gets <i>merged</i> into state. You choose the rule per key.</p>
+<pre class="mono"><span class="c"># default rule → OVERWRITE</span>
+iteration: int                           <span class="c"># returning 2 replaces 1</span>
+<span class="c"># add_messages rule → APPEND</span>
+messages: Annotated[list, add_messages]  <span class="c"># returning [m] grows the list</span></pre>
+        <p class="py"><b>In plain Python:</b> <code>dict.update()</code> (overwrite) vs <code>list.extend()</code>
+        (append) — the reducer just says which one LangGraph does for that key.</p></div>
+    </div>
+    <div class="gitem">
+      <div class="gterm"><b>Edge</b><small>a wire between nodes</small></div>
+      <div class="gdef"><p>“After node A, go to node B.” A plain edge always leads to the same next node.</p>
+<pre class="mono">graph.add_edge(<span class="s">"tools"</span>, <span class="s">"reason"</span>)  <span class="c"># tools always loops back to reason</span></pre>
+        <p class="py"><b>In plain Python:</b> the hard-coded “what to call next,” lifted out of the function bodies
+        and made explicit so it can loop or branch.</p></div>
+    </div>
+    <div class="gitem">
+      <div class="gterm"><b>Conditional edge</b><small>a routing function</small></div>
+      <div class="gdef"><p>An edge whose destination is decided at runtime by a small function that reads state and
+        returns the <i>name</i> of the next node.</p>
+<pre class="mono"><span class="k">def</span> route(state) <span class="k">-&gt;</span> str:
+    <span class="k">if</span> state[<span class="s">"action"</span>] == <span class="s">"finish"</span>: <span class="k">return</span> <span class="s">"finish"</span>
+    <span class="k">return</span> <span class="s">"tools"</span></pre>
+        <p class="py"><b>In plain Python:</b> an <code>if / elif</code> that returns where to go next.</p></div>
+    </div>
+    <div class="gitem">
+      <div class="gterm"><b>Superstep</b><small>one tick of the engine</small></div>
+      <div class="gdef"><p>One unit of progress: run the current node, merge its return into state, then follow an edge
+        to the next node. The trace further down is numbered by superstep.</p>
+        <p class="py"><b>In plain Python:</b> one iteration of the run-loop that LangGraph executes for you.</p></div>
+    </div>
+    <div class="gitem">
+      <div class="gterm"><b>writer()</b><small>StreamWriter</small></div>
+      <div class="gdef"><p>A function passed to each node to push an event out to the caller — <i>separate</i> from state.
+        With <code>astream(stream_mode="custom")</code>, whatever you pass to <code>writer()</code> is exactly what
+        the run yields.</p>
+        <p class="py"><b>In plain Python:</b> like calling a <code>callback(event)</code> or <code>yield</code>-ing
+        progress, without touching your data.</p></div>
+    </div>
+  </div>
+  <p class="note">That’s the whole vocabulary. Everything below just shows these pieces doing their job on one real
+  query.</p>
+
+  <!-- ─────────────────────────────────────────── -->
+  <h2>1 · The one idea to hold onto: two channels</h2>
+  <p>A node is just <code>async def node(state, writer) -&gt; dict</code>. It can talk on two channels at once,
+  and they go to two different places:</p>
+
+  <div class="channels">
+    <div class="chan state">
+      <h3><span class="dot state"></span> The <span style="color:var(--state)">return value</span> &nbsp;→&nbsp; the graph</h3>
+      <p class="sub" style="margin:4px 0 0">What the node <code>return</code>s is a <b>partial state update</b>.
+      LangGraph merges it into <code>ScoutState</code> and uses it to decide where to go next.</p>
+      <ul>
+        <li>Drives routing (<code>route()</code> reads state)</li>
+        <li>Persists across supersteps</li>
+        <li>The user never sees it</li>
+      </ul>
+    </div>
+    <div class="chan stream">
+      <h3><span class="dot stream"></span> The <span style="color:var(--stream)">writer()</span> call &nbsp;→&nbsp; the browser</h3>
+      <p class="sub" style="margin:4px 0 0">Calling <code>writer(...)</code> pushes an event out of
+      <code>astream(stream_mode="custom")</code> — straight to the SSE endpoint and the UI.</p>
+      <ul>
+        <li>Pure presentation (thoughts, actions, results)</li>
+        <li>Does <b>not</b> touch graph state</li>
+        <li>Same event shapes the hand-rolled agent emitted</li>
+      </ul>
+    </div>
+  </div>
+  <p class="note">So in <code>tools_node</code> you’ll see <code>writer(_emit("observation", …))</code>
+  <i>(tell the user)</i> <b>and</b> <code>return {"messages": [...]}</code> <i>(feed the next reasoning step)</i> —
+  same function, two destinations.</p>
+
+  <!-- ─────────────────────────────────────────── -->
+  <h2>2 · The four LangGraph pieces, mapped to this file</h2>
+  <table>
+    <tr><th>LangGraph piece</th><th>Where it lives in react_agent.py</th></tr>
+    <tr>
+      <td class="concept">Typed state</td>
+      <td><span class="mono">class ScoutState(TypedDict)</span>
+        <small>Shared memory for the whole run: <code>goal</code>, <code>messages</code>,
+        <code>iteration</code>, <code>action</code>, <code>assets</code>, <code>summary</code>.</small></td>
+    </tr>
+    <tr>
+      <td class="concept">A reducer</td>
+      <td><span class="mono">messages: Annotated[list, add_messages]</span>
+        <small>The magic word. A normal field is <i>overwritten</i> on return; an
+        <code>add_messages</code> field is <i>appended</i>. This is how chat history grows without you
+        managing a list.</small></td>
+    </tr>
+    <tr>
+      <td class="concept">Nodes</td>
+      <td><span class="mono">reason_node</span> · <span class="mono">tools_node</span> · <span class="mono">finish_node</span>
+        <small>Each is <code>async (state, writer) -&gt; dict</code>. Think / Act+Observe / Finalize.</small></td>
+    </tr>
+    <tr>
+      <td class="concept">Edges + the loop</td>
+      <td><span class="mono">add_conditional_edges("reason", route, …)</span><br>
+        <span class="mono">add_edge("tools", "reason")</span>
+        <small><code>route()</code> sends <code>reason → tools</code> or <code>reason → finish</code>.
+        The unconditional <code>tools → reason</code> edge is what makes it a <b>ReAct loop</b>.</small></td>
+    </tr>
+    <tr>
+      <td class="concept">Compile &amp; run</td>
+      <td><span class="mono">graph.compile()</span> → <span class="mono">.astream(initial, stream_mode="custom")</span>
+        <small><code>recursion_limit = 2*MAX_ITERATIONS+5</code> caps the loop (reason+tools = 2 supersteps/turn).</small></td>
+    </tr>
+  </table>
+
+  <!-- ─────────────────────────────────────────── -->
+  <h2>3 · The actual run, superstep by superstep</h2>
+  <p class="lead" style="margin-bottom:6px">Query: <code>find payment data</code>. Each card shows the node’s
+  <span class="tag state">return</span> (left, with the new state) and what it
+  <span class="tag stream">streamed</span> to the UI (right). Watch <code>iteration</code> climb and
+  <span class="add">messages append</span> via the reducer.</p>
+  <div class="legend">
+    <span><span class="dot state"></span> graph state (control plane)</span>
+    <span><span class="dot stream"></span> SSE event (what the user sees)</span>
+    <span><span class="add">●</span> appended by add_messages reducer</span>
+    <span><span class="chg">●</span> field changed this step</span>
+  </div>
+
+  <!-- INITIAL -->
+  <div class="step">
+    <div class="step-head"><span class="ss">init</span>
+      <span class="node">run_source_scout_react("find payment data")<em>builds the initial ScoutState</em></span></div>
+    <div class="col" style="border:0">
+      <h4><span class="dot state"></span> initial state</h4>
+<pre class="mono"><span class="key">goal</span>: <span class="s">"find payment data"</span>
+<span class="key">messages</span>: [System(prompt), Human(<span class="s">"Goal: find payment data"</span>)]
+<span class="key">iteration</span>: <span class="n">0</span>
+<span class="key">action</span>: <span class="s">""</span>   <span class="key">assets</span>: []   <span class="key">summary</span>: <span class="s">""</span></pre>
+      <p class="note">Entry point: <code>reason</code>. The cap: <code>recursion_limit</code> = 2·15+5 = 35 supersteps.</p>
+    </div>
+  </div>
+
+  <!-- SS1 reason -->
+  <div class="step">
+    <div class="step-head"><span class="ss">superstep 1</span>
+      <span class="node">reason_node<em>Think — ask the LLM for Thought / Action / Action Input</em></span></div>
+    <div class="step-body">
+      <div class="col">
+        <h4><span class="dot state"></span> returns (merged into state)</h4>
+<pre class="mono"><span class="key">iteration</span>: <span class="chg n">1</span>
+<span class="key">thought</span>: <span class="chg s">"Search the catalog for payment assets"</span>
+<span class="key">action</span>: <span class="chg s">"semantic_search"</span>
+<span class="key">action_input</span>: <span class="chg">null</span></pre>
+        <p class="note"><code>reason()</code> calls <code>ChatOpenAI</code>, then
+        <code>parse_react_response()</code> splits the text into the three fields.</p>
+      </div>
+      <div class="col">
+        <h4><span class="dot stream"></span> writer() → browser</h4>
+        <div class="emit"><b>thought</b> · iteration 1<br>“Search the catalog for payment assets”</div>
+        <p class="note">One <code>writer(_emit("thought", …))</code>. Notice: <code>messages</code> is
+        <b>not</b> touched here — reasoning reads history, the tool step writes it.</p>
+      </div>
+    </div>
+    <div class="route"><span class="arrow">↳</span> <span class="mono">route(state)</span>:
+      action ≠ <span class="pill">finish</span> and iteration 1 &lt; 15
+      <span class="arrow">→</span> <span class="pill">tools</span></div>
+  </div>
+
+  <!-- SS2 tools -->
+  <div class="step loopback">
+    <div class="step-head"><span class="ss">superstep 2</span>
+      <span class="node">tools_node<em>Act + Observe — run semantic_search, record the result</em></span></div>
+    <div class="step-body">
+      <div class="col">
+        <h4><span class="dot state"></span> returns (reducer APPENDS)</h4>
+<pre class="mono"><span class="key">messages</span>: [
+  <span class="c">… System, Human …</span>
+  <span class="add">AIMessage("Thought: … Action: semantic_search")</span>
+  <span class="add">HumanMessage("Observation: Found 2 assets:</span>
+  <span class="add">  demo.payments, demo.payment_transactions")</span>
+]</pre>
+        <p class="note">Return is <code>{"messages": [AI, Human]}</code>. Because the field has the
+        <code>add_messages</code> reducer, LangGraph <span class="add">appends</span> — it does not overwrite the
+        system+goal already there.</p>
+      </div>
+      <div class="col">
+        <h4><span class="dot stream"></span> writer() → browser (2 events)</h4>
+        <div class="emit"><b>action</b> · tool=semantic_search · input=null</div>
+        <div class="emit" style="margin-top:8px"><b>observation</b> · “Found 2 assets:
+          demo.payments, demo.payment_transactions”</div>
+        <p class="note"><code>semantic_search()</code> hits the Qdrant catalog (the path we just fixed).
+        Output is text appended to history; events narrate it live.</p>
+      </div>
+    </div>
+    <div class="route"><span class="arrow">↳</span> unconditional edge
+      <span class="pill">tools</span> <span class="arrow">→</span> <span class="pill">reason</span>
+      &nbsp;·&nbsp; <i>this edge is the loop</i></div>
+  </div>
+
+  <!-- SS3 reason -->
+  <div class="step">
+    <div class="step-head"><span class="ss">superstep 3</span>
+      <span class="node">reason_node<em>Think again — now the observation is in messages</em></span></div>
+    <div class="step-body">
+      <div class="col">
+        <h4><span class="dot state"></span> returns</h4>
+<pre class="mono"><span class="key">iteration</span>: <span class="chg n">2</span>
+<span class="key">thought</span>: <span class="chg s">"Inspect demo.payments schema"</span>
+<span class="key">action</span>: <span class="chg s">"get_table_schema"</span>
+<span class="key">action_input</span>: <span class="chg">{"table": "demo.payments"}</span></pre>
+        <p class="note">The LLM sees the appended <code>Observation</code> from superstep 2 — that’s
+        why it can now name a specific table. State carried it forward for free.</p>
+      </div>
+      <div class="col">
+        <h4><span class="dot stream"></span> writer() → browser</h4>
+        <div class="emit"><b>thought</b> · iteration 2<br>“Inspect demo.payments schema”</div>
+      </div>
+    </div>
+    <div class="route"><span class="arrow">↳</span> <span class="mono">route</span>:
+      still not finished <span class="arrow">→</span> <span class="pill">tools</span></div>
+  </div>
+
+  <!-- SS4 tools (condensed) -->
+  <div class="step loopback">
+    <div class="step-head"><span class="ss">superstep 4</span>
+      <span class="node">tools_node<em>get_table_schema("demo.payments") → describe_iceberg_table</em></span></div>
+    <div class="step-body">
+      <div class="col">
+        <h4><span class="dot state"></span> returns (append again)</h4>
+<pre class="mono"><span class="key">messages</span>: [ <span class="c">… prior …</span>
+  <span class="add">AIMessage("Action: get_table_schema …")</span>
+  <span class="add">HumanMessage("Observation: Schema for</span>
+  <span class="add">  demo.payments: amount, currency, …")</span> ]</pre>
+      </div>
+      <div class="col">
+        <h4><span class="dot stream"></span> writer() → browser</h4>
+        <div class="emit"><b>action</b> · tool=get_table_schema · {table: demo.payments}</div>
+        <div class="emit" style="margin-top:8px"><b>observation</b> · “Schema for demo.payments: amount, currency …”</div>
+      </div>
+    </div>
+    <div class="route"><span class="arrow">↳</span> <span class="pill">tools</span>
+      <span class="arrow">→</span> <span class="pill">reason</span> <i>(loop)</i></div>
+  </div>
+
+  <!-- SS5 reason → finish -->
+  <div class="step">
+    <div class="step-head"><span class="ss">superstep 5</span>
+      <span class="node">reason_node<em>The LLM decides it’s done → Action: finish</em></span></div>
+    <div class="step-body">
+      <div class="col">
+        <h4><span class="dot state"></span> returns</h4>
+<pre class="mono"><span class="key">iteration</span>: <span class="chg n">3</span>
+<span class="key">action</span>: <span class="chg s">"finish"</span>
+<span class="key">assets</span>: <span class="chg">[demo.payments, demo.payment_transactions]</span>
+<span class="key">summary</span>: <span class="chg s">"2 payment assets found"</span></pre>
+        <p class="note">Special case in <code>reason_node</code>: when <code>action == "finish"</code>, it lifts
+        <code>assets</code> + <code>summary</code> out of the LLM’s Action Input into state.</p>
+      </div>
+      <div class="col">
+        <h4><span class="dot stream"></span> writer() → browser</h4>
+        <div class="emit"><b>thought</b> · iteration 3 · “Found the payment assets, finishing.”</div>
+      </div>
+    </div>
+    <div class="route"><span class="arrow">↳</span> <span class="mono">route</span>:
+      action == <span class="pill">finish</span> <span class="arrow">→</span> <span class="pill">finish</span></div>
+  </div>
+
+  <!-- SS6 finish -->
+  <div class="step">
+    <div class="step-head"><span class="ss">superstep 6</span>
+      <span class="node">finish_node<em>Emit the final result, enrich with OpenMetadata lineage → END</em></span></div>
+    <div class="step-body">
+      <div class="col">
+        <h4><span class="dot state"></span> returns</h4>
+<pre class="mono"><span class="c"># nothing more to merge</span>
+<span class="key">return</span> {}</pre>
+        <p class="note">The graph reaches <code>END</code>. The <code>astream</code> generator is exhausted;
+        the SSE endpoint closes the connection.</p>
+      </div>
+      <div class="col">
+        <h4><span class="dot stream"></span> writer() → browser</h4>
+        <div class="emit"><b>complete</b> · “2 payment assets found” · assets_count=2</div>
+        <div class="emit" style="margin-top:8px"><b>lineage</b> · demo.payments · upstream/downstream (if OM is up)</div>
+      </div>
+    </div>
+    <div class="route"><span class="arrow">↳</span> <span class="pill">finish</span>
+      <span class="arrow">→</span> <span class="pill">__end__</span></div>
+  </div>
+
+  <!-- ─────────────────────────────────────────── -->
+  <h2>4 · Reducer spotlight: why <code>messages</code> is special</h2>
+  <div class="spot">
+    <h3>add_messages = “append, don’t overwrite”</h3>
+    <p style="margin-top:6px">Every other field in <code>ScoutState</code> follows the default rule: a node’s
+    return value <b>replaces</b> it (that’s why <code>iteration: 2</code> just overwrites <code>1</code>).
+    But <code>messages</code> is declared <code>Annotated[list, add_messages]</code>, so each
+    <code>tools_node</code> return <span class="add">grows</span> the history instead of clobbering the system
+    prompt + goal. That single annotation is the entire reason the ReAct loop “remembers” prior observations —
+    no manual list-appending anywhere in the code.</p>
+  </div>
+
+  <!-- ─────────────────────────────────────────── -->
+  <h2>5 · How we keep it fast at scale</h2>
+  <p class="lead">An agent that loads the whole catalog and pipes it into an LLM works fine at 40 tables and
+  dies at 4,000. Every optimization below has one job: <b>make the work independent of catalog size.</b></p>
+
+  <h3>5.1 · Retrieve, don’t enumerate — the core move</h3>
+  <div class="two">
+    <div class="card bad">
+      <h3>✗ Enumerate the catalog</h3>
+<pre class="mono">catalog = load_all_tables()      <span class="c"># N rows</span>
+hits = llm_filter(goal, catalog) <span class="c"># N rows → LLM</span></pre>
+      <p class="note">Memory and tokens grow with the catalog. At 100k tables the prompt alone is impossible —
+      this is the “million candidates to the model” failure mode.</p>
+    </div>
+    <div class="card good">
+      <h3>✓ Retrieve top-N from the index</h3>
+<pre class="mono">hits = catalog_store.search(goal, top_k=<span class="n">12</span>)
+<span class="c"># vector index returns the 12 nearest — flat cost</span></pre>
+      <p class="note"><code>_search_assets(message, top_k=12)</code> in scout_chat ·
+      <code>catalog_store.search(goal, types, 50)</code> in the ReAct agent. Work is <b>O(1)</b> in the catalog.</p>
+    </div>
+  </div>
+
+  <div class="why">The vector index does the heavy lifting <i>before</i> any LLM runs. The model’s job shrinks
+  from “search 100k tables” to “rank these 12” — and that constant-size job is what bounds latency and cost.</div>
+
+  <div class="scale">
+    <div class="scrow"><div class="lab">catalog = 50<small>tables</small></div>
+      <div class="bars">
+        <div class="bar old"><span class="tagn">old</span><div class="track" style="width:12%"></div><span class="v">50 rows → LLM</span></div>
+        <div class="bar new"><span class="tagn">new</span><div class="track" style="width:5%"></div><span class="v">12 rows → LLM</span></div>
+      </div></div>
+    <div class="scrow"><div class="lab">catalog = 1,000</div>
+      <div class="bars">
+        <div class="bar old"><span class="tagn">old</span><div class="track" style="width:55%"></div><span class="v">1,000 rows → LLM</span></div>
+        <div class="bar new"><span class="tagn">new</span><div class="track" style="width:5%"></div><span class="v">12 rows → LLM</span></div>
+      </div></div>
+    <div class="scrow"><div class="lab">catalog = 100,000</div>
+      <div class="bars">
+        <div class="bar old"><span class="tagn">old</span><div class="track" style="width:100%"></div><span class="v">100,000 rows → impossible</span></div>
+        <div class="bar new"><span class="tagn">new</span><div class="track" style="width:5%"></div><span class="v">12 rows → LLM</span></div>
+      </div></div>
+  </div>
+  <p class="note">Red = rows fed to the LLM under enumeration (grows with the catalog; bar widths illustrative).
+  Green = retrieval, always 12. The exact counts in the labels are the point.</p>
+
+  <h3>5.2 · Then bound what the model sees (RAG)</h3>
+  <p>The retrieved N are the <i>only</i> thing the LLM ranks, so prompt size is constant no matter how big the
+  catalog grows. The full-catalog path still exists, but only as a fallback when the index is empty — and even
+  that is capped. (Exactly the “million candidates” bug we closed by making retrieval work.)</p>
+
+  <h3>5.3 · Skip search entirely when you already know the name</h3>
+  <div class="card good" style="margin:10px 0">
+<pre class="mono"><span class="k">async def</span> _resolve_asset(name):
+    <span class="k">if</span> <span class="s">"."</span> <span class="k">in</span> name:                      <span class="c"># db.table → known</span>
+        <span class="k">return</span> describe_iceberg_table(name)  <span class="c"># ZERO vector search</span>
+    <span class="c"># …only fuzzy names fall back to a top-1 index match</span></pre>
+  </div>
+  <p class="note">A fully-qualified <code>db.table</code> resolves with one catalog describe — no embedding, no
+  vector query. Retrieval is reserved for genuinely ambiguous asks.</p>
+
+  <h3>5.4 · Retrieval only helps if the index is cheap <em>and</em> correct</h3>
+  <p class="sub">These are the fixes from the Qdrant debugging — each is a precondition for the speed above:</p>
+  <div class="optgrid">
+    <div class="opt"><h3><span class="num">a</span> query_points()</h3>
+      <p>qdrant-client 1.18 dropped <code>.search()</code>; the call threw and silently returned 0, forcing the
+      slow full-catalog fallback on <i>every</i> query.</p>
+      <span class="win">retrieval actually fires</span></div>
+    <div class="opt"><h3><span class="num">b</span> deterministic uuid5 IDs</h3>
+      <p>IDs used <code>hash()</code>, which randomizes per process → every restart re-indexed the same assets as
+      duplicates.</p>
+      <span class="win">309 → 45 points · no bloat</span></div>
+    <div class="opt"><h3><span class="num">c</span> over-fetch ×4 + dedup</h3>
+      <p>Fetch <code>limit·4</code>, collapse duplicate assets, keep best score — diverse top-k even on a dirty
+      index.</p>
+      <span class="win">distinct, relevant hits</span></div>
+    <div class="opt"><h3><span class="num">d</span> 768-dim match</h3>
+      <p>Collection was built at 384 while embeddings are 768 → every search rejected. Pinned to the model’s dim.</p>
+      <span class="win">searches return results</span></div>
+  </div>
+
+  <h3>5.5 · Hide the latency you can’t remove</h3>
+  <div class="optgrid">
+    <div class="opt"><h3><span class="num">a</span> stream_mode="custom"</h3>
+      <p>Each <code>writer()</code> reaches the UI immediately — the user reads the first <i>thought</i> while the
+      tools still run. Perceived latency ≈ time-to-first-token, not total runtime.</p>
+      <span class="win">instant feedback</span></div>
+    <div class="opt"><h3><span class="num">b</span> LLM keep-warm</h3>
+      <p><code>_llm_keepwarm_loop</code> pings every 240 s, under Ollama’s 300 s idle-unload — the first real query
+      never pays a cold-model stall.</p>
+      <span class="win">no cold start</span></div>
+    <div class="opt"><h3><span class="num">c</span> deterministic routing</h3>
+      <p>A clear verb plus an asset already in context skips the LLM router call entirely
+      (<code>det_intent</code>).</p>
+      <span class="win">one fewer LLM hop</span></div>
+    <div class="opt"><h3><span class="num">d</span> warm caches</h3>
+      <p>Schema Registry is warm-indexed at boot; repeated discovery goals are served from the intent cache.</p>
+      <span class="win">skip recompute</span></div>
+  </div>
+
+  <h3>5.6 · Cap the compute so a confused model can’t run away</h3>
+  <div class="spot">
+    <h3>recursion_limit = 2 · MAX_ITERATIONS + 5</h3>
+    <p style="margin-top:6px">Each ReAct turn is two supersteps (<code>reason</code> + <code>tools</code>), so the
+    limit lets the loop run at most <code>MAX_ITERATIONS</code> (15) turns before LangGraph halts it — a hard
+    ceiling on tool calls and LLM hops per request, declared once instead of hand-watched with a counter.</p>
+  </div>
+
+  <h2>6 · Optimization cheat-sheet</h2>
+  <table>
+    <tr><th>Optimization</th><th>Where</th><th>Win</th></tr>
+    <tr><td class="concept">Retrieve top-N</td><td><span class="mono">_search_assets · catalog_store.search</span></td><td>work is O(1) in catalog size</td></tr>
+    <tr><td class="concept">RAG-bound the LLM</td><td><span class="mono">_handle_discover</span></td><td>constant prompt size</td></tr>
+    <tr><td class="concept">Lazy resolve</td><td><span class="mono">_resolve_asset</span></td><td>0 search for known FQNs</td></tr>
+    <tr><td class="concept">query_points + uuid5 + dedup</td><td><span class="mono">qdrant_store.py</span></td><td>index correct, no dup bloat</td></tr>
+    <tr><td class="concept">Custom streaming</td><td><span class="mono">stream_mode="custom"</span></td><td>time-to-first-token UX</td></tr>
+    <tr><td class="concept">Keep-warm + caches</td><td><span class="mono">app.py lifespan</span></td><td>no cold starts / recompute</td></tr>
+    <tr><td class="concept">recursion_limit</td><td><span class="mono">astream config</span></td><td>bounded tool / LLM calls</td></tr>
+  </table>
+
+  <!-- ─────────────────────────────────────────── -->
+  <h2>7 · What LangGraph replaced</h2>
+  <div class="two">
+    <div class="card bad">
+      <h3>✗ Before — hand-rolled loop</h3>
+<pre class="mono"><span class="k">while</span> iteration &lt; MAX:
+    iteration += <span class="n">1</span>
+    t,a,inp = <span class="k">await</span> reason(history)
+    <span class="k">if</span> a == <span class="s">"finish"</span>: <span class="k">break</span>
+    obs = run_tool(a, inp)
+    history.append(ai_msg)      <span class="c"># manual</span>
+    history.append(human_obs)   <span class="c"># manual</span>
+emit_final(...)</pre>
+      <p class="note">You own the loop, the counter, the history list, and the stop logic. Streaming is
+      tangled into the loop body.</p>
+    </div>
+    <div class="card good">
+      <h3>✓ After — declared graph</h3>
+<pre class="mono">graph.add_node(<span class="s">"reason"</span>, reason_node)
+graph.add_node(<span class="s">"tools"</span>, tools_node)
+graph.add_node(<span class="s">"finish"</span>, finish_node)
+graph.add_conditional_edges(<span class="s">"reason"</span>, route, …)
+graph.add_edge(<span class="s">"tools"</span>, <span class="s">"reason"</span>)  <span class="c"># the loop</span>
+graph.add_edge(<span class="s">"finish"</span>, END)</pre>
+      <p class="note">The loop, the cap (<code>recursion_limit</code>), and history growth (reducer) are
+      <b>declarative</b>. Nodes are small + testable; <code>writer()</code> keeps streaming separate from logic.</p>
+    </div>
+  </div>
+
+  <hr>
+  <p class="file">Source: <b>02_backend/agents/source_scout/react_agent.py</b> &nbsp;·&nbsp;
+    entry <b>run_source_scout_react()</b> · graph <b>build_scout_graph()</b></p>
+  <p class="file">The Quality Guardian uses the same pattern with branches instead of a loop:
+    <b>02_backend/agents/quality_guardian/guardian_graph.py</b></p>
+  <p class="foot">Open this file in a browser. Values in the trace are illustrative of a real
+    “find payment data” run; the field names, node names, edges, and reducer are exactly as in the code.</p>
+
+</div>
+</body>
+</html>

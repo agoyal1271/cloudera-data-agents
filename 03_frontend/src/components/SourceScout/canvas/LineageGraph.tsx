@@ -177,7 +177,7 @@ export function LineageGraph({
             >
               <div className="flex items-center gap-1.5 mb-1">
                 <meta.Icon size={13} className={current ? 'text-cloudera' : meta.text} />
-                <span className={`text-[11px] uppercase tracking-wider ${current ? 'text-cloudera' : 'text-agent-text-secondary'}`}>
+                <span className={`text-xs uppercase tracking-wider ${current ? 'text-cloudera' : 'text-agent-text-secondary'}`}>
                   {current ? 'this asset' : meta.label}
                 </span>
               </div>

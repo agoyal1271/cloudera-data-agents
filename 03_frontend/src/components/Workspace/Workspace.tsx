@@ -47,7 +47,7 @@ function WorkspaceItem({ asset, onUnpin, onSelect }: { asset: DiscoveredAsset; o
 
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium text-white truncate">{asset.name}</div>
-        <div className="text-[11px] text-slate-400 flex items-center gap-2 flex-wrap mt-0.5">
+        <div className="text-xs text-slate-400 flex items-center gap-2 flex-wrap mt-0.5">
           <span className="text-orange-400 font-semibold">→ {pipeline}</span>
           {match && <span>{match}% match</span>}
           {hasPii && <span className="text-red-400">⚠ PII</span>}
@@ -58,7 +58,7 @@ function WorkspaceItem({ asset, onUnpin, onSelect }: { asset: DiscoveredAsset; o
       </div>
 
       <div className="flex items-center gap-2 flex-shrink-0">
-        <button onClick={(e) => { e.stopPropagation(); onSelect(); }} className="text-[10px] text-slate-400 hover:text-orange-400 transition-colors font-medium">
+        <button onClick={(e) => { e.stopPropagation(); onSelect(); }} className="text-xs text-slate-400 hover:text-orange-400 transition-colors font-medium">
           View →
         </button>
         <button
@@ -147,7 +147,7 @@ export function Workspace() {
                           >
                             <span className="text-sm flex-shrink-0">{style.icon}</span>
                             <span className="text-xs text-slate-300 truncate font-medium">{asset.name}</span>
-                            <span className="text-[10px] text-slate-500 flex-shrink-0">✓</span>
+                            <span className="text-xs text-slate-500 flex-shrink-0">✓</span>
                           </button>
                         );
                       })}

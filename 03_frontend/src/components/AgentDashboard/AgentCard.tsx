@@ -42,12 +42,12 @@ export function AgentCard({ agent, onClick, selected }: Props) {
     >
       <div className="flex items-center justify-between">
         <span className="text-2xl">{ICON_MAP[agent.icon] ?? '🤖'}</span>
-        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${STATUS_STYLES[agent.status]}`}>
+        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${STATUS_STYLES[agent.status]}`}>
           {STATUS_LABELS[agent.status]}
         </span>
       </div>
       <div>
-        <div className="text-[10px] text-agent-teal font-semibold uppercase tracking-wider">{agent.role}</div>
+        <div className="text-xs text-agent-teal font-semibold uppercase tracking-wider">{agent.role}</div>
         <div className="text-sm font-bold text-agent-text-primary mt-0.5">{agent.name}</div>
         <div className="text-xs text-agent-orange font-mono mt-0.5">{agent.tagline}</div>
       </div>
@@ -55,10 +55,10 @@ export function AgentCard({ agent, onClick, selected }: Props) {
       {isActive && (
         <div className="flex flex-wrap gap-1 mt-1">
           {agent.tools.slice(0, 3).map(t => (
-            <span key={t} className="text-[9px] bg-agent-dark-border text-agent-text-secondary px-1.5 py-0.5 rounded font-mono">{t}</span>
+            <span key={t} className="text-xs bg-agent-dark-border text-agent-text-secondary px-1.5 py-0.5 rounded font-mono">{t}</span>
           ))}
           {agent.tools.length > 3 && (
-            <span className="text-[9px] text-agent-text-secondary">+{agent.tools.length - 3} more</span>
+            <span className="text-xs text-agent-text-secondary">+{agent.tools.length - 3} more</span>
           )}
         </div>
       )}

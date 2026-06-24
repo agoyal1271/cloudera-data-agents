@@ -27,23 +27,23 @@ export function AssetPreviewPane({ asset }: { asset: DiscoveredAsset }) {
           <span className="text-3xl">{style.icon}</span>
           <div>
             <div className="text-sm font-bold text-white">{asset.name}</div>
-            <div className="text-[11px] text-slate-400">{style.label}</div>
+            <div className="text-xs text-slate-400">{style.label}</div>
           </div>
         </div>
       </div>
 
       {/* Metadata grid */}
-      <div className="space-y-4 text-[11px]">
+      <div className="space-y-4 text-xs">
         {/* Pipeline */}
         <div>
-          <div className="text-slate-500 uppercase text-[9px] font-semibold tracking-wider mb-1">Pipeline</div>
+          <div className="text-slate-500 uppercase text-xs font-semibold tracking-wider mb-1">Pipeline</div>
           <div className="text-orange-400 font-semibold">→ {pipeline}</div>
         </div>
 
         {/* Size info */}
         {(rowCount || msgCount) && (
           <div>
-            <div className="text-slate-500 uppercase text-[9px] font-semibold tracking-wider mb-1">Volume</div>
+            <div className="text-slate-500 uppercase text-xs font-semibold tracking-wider mb-1">Volume</div>
             <div className="text-slate-300">
               {rowCount && <div>{rowCount} rows</div>}
               {msgCount && <div>~{msgCount} messages</div>}
@@ -53,13 +53,13 @@ export function AssetPreviewPane({ asset }: { asset: DiscoveredAsset }) {
 
         {/* Schema */}
         <div>
-          <div className="text-slate-500 uppercase text-[9px] font-semibold tracking-wider mb-1">Schema</div>
+          <div className="text-slate-500 uppercase text-xs font-semibold tracking-wider mb-1">Schema</div>
           <div className="text-slate-300">{fields.length} fields</div>
         </div>
 
         {/* Freshness */}
         <div>
-          <div className="text-slate-500 uppercase text-[9px] font-semibold tracking-wider mb-1">Freshness</div>
+          <div className="text-slate-500 uppercase text-xs font-semibold tracking-wider mb-1">Freshness</div>
           <div className="text-slate-300">
             {age ? `${age}h ago` : freshness}
           </div>
@@ -68,7 +68,7 @@ export function AssetPreviewPane({ asset }: { asset: DiscoveredAsset }) {
         {/* PII Risk */}
         {piiFields.length > 0 && (
           <div>
-            <div className="text-slate-500 uppercase text-[9px] font-semibold tracking-wider mb-1">PII Fields</div>
+            <div className="text-slate-500 uppercase text-xs font-semibold tracking-wider mb-1">PII Fields</div>
             <div className="flex flex-wrap gap-1">
               {piiFields.slice(0, 4).map(f => (
                 <span key={f.name} className="px-1.5 py-0.5 bg-red-950/50 border border-red-800/40 rounded text-red-300">
@@ -76,7 +76,7 @@ export function AssetPreviewPane({ asset }: { asset: DiscoveredAsset }) {
                 </span>
               ))}
               {piiFields.length > 4 && (
-                <span className="px-1.5 py-0.5 text-slate-400 text-[10px]">
+                <span className="px-1.5 py-0.5 text-slate-400 text-xs">
                   +{piiFields.length - 4} more
                 </span>
               )}
@@ -87,7 +87,7 @@ export function AssetPreviewPane({ asset }: { asset: DiscoveredAsset }) {
         {/* Matching info */}
         {asset.pipeline_suggestion?.confidence_score !== undefined && asset.pipeline_suggestion.confidence_score > 0 && (
           <div>
-            <div className="text-slate-500 uppercase text-[9px] font-semibold tracking-wider mb-1">Confidence</div>
+            <div className="text-slate-500 uppercase text-xs font-semibold tracking-wider mb-1">Confidence</div>
             <div className="text-emerald-400 font-semibold">
               {Math.round(asset.pipeline_suggestion.confidence_score)}%
             </div>
@@ -99,7 +99,7 @@ export function AssetPreviewPane({ asset }: { asset: DiscoveredAsset }) {
       <div className="flex-1" />
 
       {/* Footer hint */}
-      <div className="border-t border-slate-700 pt-3 text-[10px] text-slate-500">
+      <div className="border-t border-slate-700 pt-3 text-xs text-slate-500">
         👉 View full details in the right pane
       </div>
     </div>

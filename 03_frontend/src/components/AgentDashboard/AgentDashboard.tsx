@@ -51,7 +51,7 @@ export function AgentDashboard({ selectedAgent, onSelectAgent }: Props) {
             <div key={name} className="flex items-center gap-1.5 bg-agent-dark-border border border-agent-dark-border rounded-lg px-3 py-1.5">
               <span>{SERVICE_ICONS[name] ?? '🔧'}</span>
               <span className="text-xs text-agent-text-secondary capitalize">{name}</span>
-              <span className={`text-[10px] font-semibold ${status.status === 'ok' ? 'text-green-400' : 'text-[#3a5a78]'}`}>
+              <span className={`text-xs font-semibold ${status.status === 'ok' ? 'text-green-400' : 'text-[#3a5a78]'}`}>
                 {status.status === 'ok' ? '●' : '○'}
               </span>
             </div>

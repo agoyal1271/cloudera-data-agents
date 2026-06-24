@@ -106,11 +106,11 @@ DETECTION RULES:
           <div>
             <div className="text-xs font-semibold text-blue-400 mb-2">🏗️ HIERARCHICAL AGENT - Schema Classification</div>
             <div className="bg-agent-dark-bg border border-agent-dark-border rounded p-3 max-h-60 overflow-y-auto">
-              <pre className="text-[10px] text-agent-text-secondary whitespace-pre-wrap break-words font-mono">
+              <pre className="text-xs text-agent-text-secondary whitespace-pre-wrap break-words font-mono">
                 {hierarchicalPrompt}
               </pre>
             </div>
-            <div className="text-[10px] text-agent-text-secondary mt-2">
+            <div className="text-xs text-agent-text-secondary mt-2">
               <strong>Approach:</strong> Single unified prompt analyzing all columns together in one LLM call
             </div>
           </div>
@@ -126,7 +126,7 @@ DETECTION RULES:
             <div className="mb-3">
               <div className="text-xs text-purple-300 mb-1 font-semibold">Step 1: Field Analysis</div>
               <div className="bg-agent-dark-bg border border-agent-dark-border rounded p-3 max-h-40 overflow-y-auto">
-                <pre className="text-[10px] text-agent-text-secondary whitespace-pre-wrap break-words font-mono">
+                <pre className="text-xs text-agent-text-secondary whitespace-pre-wrap break-words font-mono">
                   {reactFieldAnalysisPrompt}
                 </pre>
               </div>
@@ -136,13 +136,13 @@ DETECTION RULES:
             <div>
               <div className="text-xs text-purple-300 mb-1 font-semibold">Step 2: PII Detection</div>
               <div className="bg-agent-dark-bg border border-agent-dark-border rounded p-3 max-h-40 overflow-y-auto">
-                <pre className="text-[10px] text-agent-text-secondary whitespace-pre-wrap break-words font-mono">
+                <pre className="text-xs text-agent-text-secondary whitespace-pre-wrap break-words font-mono">
                   {reactPiiPrompt}
                 </pre>
               </div>
             </div>
 
-            <div className="text-[10px] text-agent-text-secondary mt-2">
+            <div className="text-xs text-agent-text-secondary mt-2">
               <strong>Approach:</strong> Multiple specialized prompts for each analysis step (field analysis → PII detection → sensitivity classification → owner suggestion)
             </div>
           </div>
@@ -152,7 +152,7 @@ DETECTION RULES:
           {!isHierarchical && !isReact && (
           <div className="border-t border-agent-dark-border pt-4 mt-4">
             <div className="text-xs font-semibold text-agent-orange mb-2">📊 Key Differences</div>
-            <div className="grid grid-cols-2 gap-4 text-[11px] text-agent-text-secondary">
+            <div className="grid grid-cols-2 gap-4 text-xs text-agent-text-secondary">
               <div>
                 <div className="font-semibold text-blue-400 mb-1">Hierarchical</div>
                 <ul className="space-y-1">
@@ -250,7 +250,7 @@ function QuestionEvent({ event }: { event: any }) {
                 {event.sensitive_fields.map((field: any, i: number) => (
                   <div key={i} className="text-xs text-agent-text-secondary pl-2 border-l border-red-400/30">
                     <strong>{field.name || field}</strong>
-                    {field.reason && <div className="text-[10px] text-agent-text-secondary italic mt-0.5">{field.reason}</div>}
+                    {field.reason && <div className="text-xs text-agent-text-secondary italic mt-0.5">{field.reason}</div>}
                   </div>
                 ))}
               </div>
@@ -287,7 +287,7 @@ function QuestionEvent({ event }: { event: any }) {
               {selectedAnswer && (
                 <div className="mt-2 p-2 bg-purple-500/20 rounded border border-purple-500/30">
                   <div className="text-xs text-purple-400">✅ Selected: <strong>{selectedAnswer === 'accept_guess' ? 'Accept guess' : selectedAnswer}</strong></div>
-                  <div className="text-[10px] text-agent-text-secondary mt-1">Feedback submitted. Agent will learn from this.</div>
+                  <div className="text-xs text-agent-text-secondary mt-1">Feedback submitted. Agent will learn from this.</div>
                 </div>
               )}
             </div>
@@ -343,7 +343,7 @@ function ClassificationEvent({ event }: { event: any }) {
                 {event.columns.map((col: any, i: number) => (
                   <div key={i} className="text-xs text-agent-text-secondary pl-2 border-l border-yellow-400/30">
                     <strong>{col.name}</strong> <span className="text-agent-text-secondary">: {col.type}</span>
-                    {col.description && <div className="text-[10px] text-agent-text-secondary italic mt-0.5">{col.description}</div>}
+                    {col.description && <div className="text-xs text-agent-text-secondary italic mt-0.5">{col.description}</div>}
                   </div>
                 ))}
               </div>
@@ -358,7 +358,7 @@ function ClassificationEvent({ event }: { event: any }) {
                 {event.sensitive_fields.map((field: any, i: number) => (
                   <div key={i} className="text-xs text-agent-text-secondary pl-2 border-l border-red-400/30">
                     <strong>{field.name || field}</strong>
-                    {field.reason && <div className="text-[10px] text-agent-text-secondary italic mt-0.5">{field.reason}</div>}
+                    {field.reason && <div className="text-xs text-agent-text-secondary italic mt-0.5">{field.reason}</div>}
                   </div>
                 ))}
               </div>
@@ -370,7 +370,7 @@ function ClassificationEvent({ event }: { event: any }) {
             <div>
               <div className="text-xs font-semibold text-blue-400 mb-1">💬 SYSTEM PROMPT</div>
               <div className="bg-agent-dark-surface border border-agent-dark-border rounded p-2 max-h-48 overflow-y-auto">
-                <pre className="text-[10px] text-agent-text-secondary whitespace-pre-wrap break-words font-mono">{event.system_prompt}</pre>
+                <pre className="text-xs text-agent-text-secondary whitespace-pre-wrap break-words font-mono">{event.system_prompt}</pre>
               </div>
             </div>
           )}
@@ -380,7 +380,7 @@ function ClassificationEvent({ event }: { event: any }) {
             <div>
               <div className="text-xs font-semibold text-blue-400 mb-1">👤 USER PROMPT</div>
               <div className="bg-agent-dark-surface border border-agent-dark-border rounded p-2 max-h-32 overflow-y-auto">
-                <pre className="text-[10px] text-agent-text-secondary whitespace-pre-wrap break-words font-mono">{event.user_prompt}</pre>
+                <pre className="text-xs text-agent-text-secondary whitespace-pre-wrap break-words font-mono">{event.user_prompt}</pre>
               </div>
             </div>
           )}
@@ -390,7 +390,7 @@ function ClassificationEvent({ event }: { event: any }) {
             <div>
               <div className="text-xs font-semibold text-green-400 mb-1">🤖 LLM RESPONSE</div>
               <div className="bg-agent-dark-surface border border-agent-dark-border rounded p-2 max-h-32 overflow-y-auto">
-                <pre className="text-[10px] text-agent-text-secondary whitespace-pre-wrap break-words font-mono">{event.llm_response}</pre>
+                <pre className="text-xs text-agent-text-secondary whitespace-pre-wrap break-words font-mono">{event.llm_response}</pre>
               </div>
             </div>
           )}
@@ -601,10 +601,10 @@ export function AgentPanel({ agent, endpoint, extraParams = {} }: Props) {
                   {event.matched_tables?.map((match: any, i: number) => (
                     <div key={i} className="text-xs text-agent-text-secondary pl-2 border-l border-blue-400/30 bg-agent-dark-bg/50 p-1">
                       <strong>✓ {match.table}</strong>
-                      <div className="text-[10px] text-agent-text-secondary mt-0.5">
+                      <div className="text-xs text-agent-text-secondary mt-0.5">
                         {match.field_count} fields: {match.fields?.slice(0, 3).join(', ')}{match.field_count > 3 ? '...' : ''}
                       </div>
-                      <div className="text-[10px] text-blue-300 mt-0.5">{match.reason}</div>
+                      <div className="text-xs text-blue-300 mt-0.5">{match.reason}</div>
                     </div>
                   ))}
                 </div>
@@ -636,9 +636,9 @@ export function AgentPanel({ agent, endpoint, extraParams = {} }: Props) {
               <div className="bg-agent-dark-border/50 rounded-agent-md p-2 mb-1 text-xs">
                 <div className="text-agent-text-secondary">
                   <strong>{event.emoji} {event.field_name}</strong>
-                  <span className="text-[10px] text-agent-text-secondary ml-2">{event.field_type}</span>
-                  <span className="text-[10px] text-agent-orange ml-2">{(event.confidence * 100).toFixed(0)}%</span>
-                  {event.reason && <div className="text-[10px] text-agent-text-secondary italic mt-1 pl-2 border-l border-agent-dark-border">{event.reason}</div>}
+                  <span className="text-xs text-agent-text-secondary ml-2">{event.field_type}</span>
+                  <span className="text-xs text-agent-orange ml-2">{(event.confidence * 100).toFixed(0)}%</span>
+                  {event.reason && <div className="text-xs text-agent-text-secondary italic mt-1 pl-2 border-l border-agent-dark-border">{event.reason}</div>}
                 </div>
               </div>
             )}
@@ -653,7 +653,7 @@ export function AgentPanel({ agent, endpoint, extraParams = {} }: Props) {
                 {event.fields?.map((field: any, i: number) => (
                   <div key={i} className="text-xs text-agent-text-secondary mb-1 pl-2 border-l border-agent-dark-border">
                     <strong>{field.name}</strong> → {field.detected_as} ({(field.confidence * 100).toFixed(0)}%)
-                    {field.reason && <div className="text-[10px] text-agent-text-secondary italic mt-0.5">{field.reason}</div>}
+                    {field.reason && <div className="text-xs text-agent-text-secondary italic mt-0.5">{field.reason}</div>}
                   </div>
                 ))}
               </div>
@@ -679,7 +679,7 @@ export function AgentPanel({ agent, endpoint, extraParams = {} }: Props) {
                     <div className="bg-agent-dark-surface border border-agent-dark-border rounded p-2 max-h-40 overflow-y-auto">
                       <div className="text-xs font-semibold text-green-400 mb-2">Field Details:</div>
                       {event.metadata.fields?.slice(0, 10).map((field: any, i: number) => (
-                        <div key={i} className="text-[10px] text-agent-text-secondary mb-1 pl-2 border-l border-green-400/30">
+                        <div key={i} className="text-xs text-agent-text-secondary mb-1 pl-2 border-l border-green-400/30">
                           <strong>{field.name}</strong>
                           <span className="ml-2">{field.type}</span>
                           {field.is_pii && <span className="text-red-400 ml-2">🔴 PII: {field.pii_type}</span>}
@@ -792,7 +792,7 @@ export function AgentPanel({ agent, endpoint, extraParams = {} }: Props) {
             {event.type === 'generated_code' && (
               <div className="bg-agent-dark-border rounded-agent-md p-3 mb-2">
                 <div className="text-xs font-semibold text-agent-orange mb-2">{event.engine.toUpperCase()}</div>
-                <pre className="text-[10px] text-agent-text-secondary overflow-x-auto max-h-40">
+                <pre className="text-xs text-agent-text-secondary overflow-x-auto max-h-40">
                   {typeof event.code === 'string' ? event.code : JSON.stringify(event.code, null, 2)}
                 </pre>
               </div>

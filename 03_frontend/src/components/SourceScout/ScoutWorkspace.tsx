@@ -231,7 +231,7 @@ function ArtifactChip({ block, active, onClick }: { block: Artifact; active: boo
         <div className="text-sm font-medium text-agent-text-primary truncate">{meta.title}</div>
         <div className="text-xs text-agent-text-secondary truncate">{meta.sub}</div>
       </div>
-      <span className="text-[11px] font-medium text-cloudera flex-shrink-0">{active ? 'on canvas' : 'view →'}</span>
+      <span className="text-xs font-medium text-cloudera flex-shrink-0">{active ? 'on canvas' : 'view →'}</span>
     </button>
   );
 }
@@ -285,11 +285,11 @@ function ProvenancePanel({ spans, summary }: { spans: ProvenanceSpan[]; summary:
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
             <span className="text-xs font-semibold text-agent-text-primary">How this answer was made</span>
-            <span className="text-[11px] text-agent-text-secondary tabular-nums whitespace-nowrap">
+            <span className="text-xs text-agent-text-secondary tabular-nums whitespace-nowrap">
               {summary.llm_calls} AI · {summary.deterministic_steps} det · {secs}s{summary.total_tokens ? ` · ${summary.total_tokens} tok` : ''}
             </span>
           </div>
-          <div className="text-[11px] text-agent-text-secondary truncate">{badge}</div>
+          <div className="text-xs text-agent-text-secondary truncate">{badge}</div>
         </div>
         {open ? <ChevronDown size={15} className="text-agent-text-secondary flex-shrink-0 mt-0.5" /> : <ChevronRight size={15} className="text-agent-text-secondary flex-shrink-0 mt-0.5" />}
       </button>
@@ -311,11 +311,11 @@ function ProvenanceRow({ s }: { s: ProvenanceSpan }) {
       <div className="flex items-center gap-2.5">
         <vis.Icon size={14} className={`${vis.color} flex-shrink-0`} />
         <span className="text-sm text-agent-text-primary flex-1 min-w-0 truncate">{s.name}</span>
-        <span className={`text-[11px] font-medium ${vis.color} flex-shrink-0`}>{vis.label}</span>
-        <span className="text-[11px] text-agent-text-secondary flex-shrink-0 tabular-nums">{s.ms}ms</span>
+        <span className={`text-xs font-medium ${vis.color} flex-shrink-0`}>{vis.label}</span>
+        <span className="text-xs text-agent-text-secondary flex-shrink-0 tabular-nums">{s.ms}ms</span>
       </div>
       {(s.note || s.model || s.tokens) && (
-        <div className="mt-1 pl-[26px] text-[11px] text-agent-text-secondary">
+        <div className="mt-1 pl-[26px] text-xs text-agent-text-secondary">
           {s.model && <span className="font-mono">{s.model}</span>}
           {s.tokens ? <span>{s.model ? ' · ' : ''}{s.tokens} tokens</span> : null}
           {s.note ? <span>{(s.model || s.tokens) ? ' · ' : ''}{s.note}</span> : null}
@@ -323,18 +323,18 @@ function ProvenanceRow({ s }: { s: ProvenanceSpan }) {
       )}
       {hasPrompt && (
         <div className="mt-1.5 pl-[26px]">
-          <button onClick={() => setShowPrompt(v => !v)} className="text-[11px] text-cloudera hover:underline flex items-center gap-1">
+          <button onClick={() => setShowPrompt(v => !v)} className="text-xs text-cloudera hover:underline flex items-center gap-1">
             <Eye size={12} /> {showPrompt ? 'Hide' : 'View'} prompt &amp; response
           </button>
           {showPrompt && (
             <div className="mt-1.5 space-y-1.5">
               <div>
-                <div className="text-[11px] uppercase tracking-wide text-agent-text-secondary mb-0.5">Prompt → model</div>
-                <pre className="text-[11px] font-mono text-agent-text-secondary whitespace-pre-wrap bg-agent-dark-surface rounded-lg p-2 max-h-44 overflow-auto">{s.prompt}</pre>
+                <div className="text-xs uppercase tracking-wide text-agent-text-secondary mb-0.5">Prompt → model</div>
+                <pre className="text-xs font-mono text-agent-text-secondary whitespace-pre-wrap bg-agent-dark-surface rounded-lg p-2 max-h-44 overflow-auto">{s.prompt}</pre>
               </div>
               <div>
-                <div className="text-[11px] uppercase tracking-wide text-agent-text-secondary mb-0.5">Model response</div>
-                <pre className="text-[11px] font-mono text-cloudera/90 whitespace-pre-wrap bg-agent-dark-surface rounded-lg p-2 max-h-44 overflow-auto">{s.completion}</pre>
+                <div className="text-xs uppercase tracking-wide text-agent-text-secondary mb-0.5">Model response</div>
+                <pre className="text-xs font-mono text-cloudera/90 whitespace-pre-wrap bg-agent-dark-surface rounded-lg p-2 max-h-44 overflow-auto">{s.completion}</pre>
               </div>
             </div>
           )}

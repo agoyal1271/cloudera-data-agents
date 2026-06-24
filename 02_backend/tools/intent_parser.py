@@ -124,12 +124,22 @@ async def parse_intent_with_cache(goal: str) -> dict[str, Any]:
         return await _parse_intent_with_llm(goal)
 
     try:
-        results = client.search(
-            collection_name="intent_cache",
-            query_vector=goal_vector,
-            limit=1,
-            score_threshold=0.92,  # Similarity threshold
-        )
+        # qdrant-client ≥ 1.12 removed .search() → use .query_points() when present.
+        if hasattr(client, "query_points"):
+            results = client.query_points(
+                collection_name="intent_cache",
+                query=goal_vector,
+                limit=1,
+                score_threshold=0.92,  # Similarity threshold
+                with_payload=True,
+            ).points
+        else:
+            results = client.search(
+                collection_name="intent_cache",
+                query_vector=goal_vector,
+                limit=1,
+                score_threshold=0.92,
+            )
 
         if results and len(results) > 0:
             # Cache HIT

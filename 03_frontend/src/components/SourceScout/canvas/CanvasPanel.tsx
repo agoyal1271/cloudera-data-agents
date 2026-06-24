@@ -92,7 +92,7 @@ function QualityCanvas({ a, onAsk }: { a: Extract<ChatBlock, { type: 'quality' }
         {/* Failing/warn checks first */}
         {failing.length > 0 && (
           <div>
-            <div className="text-[11px] font-semibold text-agent-text-secondary uppercase tracking-wider mb-2">Needs attention ({failing.length})</div>
+            <div className="text-xs font-semibold text-agent-text-secondary uppercase tracking-wider mb-2">Needs attention ({failing.length})</div>
             <div className="space-y-1.5">
               {failing.map((c, i) => <CheckRow key={i} c={c} />)}
             </div>
@@ -101,7 +101,7 @@ function QualityCanvas({ a, onAsk }: { a: Extract<ChatBlock, { type: 'quality' }
         {/* Passing checks */}
         {passing.length > 0 && (
           <div>
-            <div className="text-[11px] font-semibold text-agent-text-secondary uppercase tracking-wider mb-2">Passing ({passing.length})</div>
+            <div className="text-xs font-semibold text-agent-text-secondary uppercase tracking-wider mb-2">Passing ({passing.length})</div>
             <div className="space-y-1.5">
               {passing.map((c, i) => <CheckRow key={i} c={c} />)}
             </div>
@@ -115,7 +115,7 @@ function QualityCanvas({ a, onAsk }: { a: Extract<ChatBlock, { type: 'quality' }
 function CheckRow({ c }: { c: QualityCheck }) {
   return (
     <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-agent-dark-surface border border-agent-dark-border">
-      <span className={`text-[11px] px-1.5 py-0.5 rounded border font-semibold uppercase ${STATUS_STYLE[c.status]}`}>{c.status}</span>
+      <span className={`text-xs px-1.5 py-0.5 rounded border font-semibold uppercase ${STATUS_STYLE[c.status]}`}>{c.status}</span>
       <span className="text-sm font-mono text-agent-text-primary">{c.column}</span>
       <span className="text-xs text-agent-text-secondary ml-auto">{c.check} · {c.label}</span>
     </div>
@@ -287,7 +287,7 @@ function AssetsCanvas({ a, onAsk }: { a: Extract<ChatBlock, { type: 'assets' }>;
               className="text-left bg-agent-dark-surface hover:bg-agent-dark-border border border-agent-dark-border hover:border-cloudera/50 rounded-xl p-3.5 transition-colors">
               <div className="flex items-center justify-between mb-1.5">
                 <span className="font-mono text-sm text-agent-text-primary truncate">{asset.name}</span>
-                <span className={`text-[11px] px-1.5 py-0.5 rounded border font-semibold flex-shrink-0 ml-2 ${badge}`}>{label}</span>
+                <span className={`text-xs px-1.5 py-0.5 rounded border font-semibold flex-shrink-0 ml-2 ${badge}`}>{label}</span>
               </div>
               <div className="text-xs text-agent-text-secondary truncate">
                 {asset.field_count} fields · {asset.fields.slice(0, 5).join(', ')}{asset.fields.length > 5 ? '…' : ''}

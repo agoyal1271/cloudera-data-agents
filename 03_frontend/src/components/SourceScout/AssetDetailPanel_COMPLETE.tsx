@@ -343,7 +343,7 @@ export function AssetDetailPanel({
           >
             {tab.label}
             {tab.badge !== undefined && tab.badge !== null && (
-              <span className={`ml-1.5 text-[10px] px-1 py-0.5 rounded font-bold ${
+              <span className={`ml-1.5 text-xs px-1 py-0.5 rounded font-bold ${
                 typeof tab.badge === 'number'
                   ? `${getScoreColor(tab.badge as number)} bg-agent-dark-border`
                   : 'text-amber-400 bg-agent-dark-border'
@@ -400,7 +400,7 @@ export function AssetDetailPanel({
                         <span className={`font-mono font-semibold ${isPii ? 'text-red-300' : 'text-agent-text-primary'}`}>
                           {field.name}
                         </span>
-                        {isPii && <span className="ml-2 text-[10px] text-red-400">PII</span>}
+                        {isPii && <span className="ml-2 text-xs text-red-400">PII</span>}
                       </div>
                       <span className="text-agent-text-secondary">{field.type}</span>
                     </div>

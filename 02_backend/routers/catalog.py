@@ -42,6 +42,23 @@ def _row(h: dict) -> dict:
     }
 
 
+@router.post("/refresh")
+async def refresh_catalog():
+    """Force-refresh the Iceberg table list and re-index into Qdrant.
+    Call this after creating or dropping tables so they appear in search immediately,
+    without waiting for the 600s TTL to expire."""
+    from tools.iceberg.iceberg_tools import list_iceberg_tables, invalidate_iceberg_list_cache
+    t0 = time.monotonic()
+    invalidate_iceberg_list_cache()
+    _TABLES_CACHE.update(ts=0.0, rows=[])   # also bust this router's own cache
+    tables = await asyncio.to_thread(list_iceberg_tables, True)
+    return {
+        "refreshed": True,
+        "table_count": len(tables),
+        "ms": round((time.monotonic() - t0) * 1000),
+    }
+
+
 @router.get("/search")
 async def search(
     q: str = Query(default="", description="Search term (table/field/namespace)"),

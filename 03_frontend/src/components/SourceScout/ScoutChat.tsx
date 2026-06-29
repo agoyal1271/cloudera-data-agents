@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Radar, ArrowUp, Database, MessageSquare, GitBranch, Play, ChevronDown, ChevronRight, Table2, Sparkles, ShieldCheck } from 'lucide-react';
+import { Radar, ArrowUp, Database, MessageSquare, GitBranch, Play, ChevronDown, ChevronRight, Table2, Sparkles, ShieldCheck, Workflow, Download } from 'lucide-react';
 import { streamChat, type ChatBlock, type AssetCard, type LineageNode, type QualityCheck, type QualityTrend } from '../../api/scout';
 
 // ── Conversation model ────────────────────────────────────────────────────────
@@ -182,10 +182,11 @@ function BlockView({ block, onAsk }: { block: ChatBlock; onAsk: (q: string) => v
     case 'thinking':   return <ThinkingLine text={block.text} />;
     case 'text':       return <TextBlock text={block.text} />;
     case 'assets':     return <AssetsBlock assets={block.assets} onAsk={onAsk} />;
-    case 'lineage':    return <LineageBlock asset={block.asset} upstream={block.upstream} downstream={block.downstream} edgeCount={block.edge_count} onAsk={onAsk} />;
+    case 'lineage':    return <LineageBlock asset={block.asset} upstream={block.upstream} downstream={block.downstream} edgeCount={block.edge_count} graph={block.graph} onAsk={onAsk} />;
     case 'sql_result': return <SqlResultBlock block={block} />;
     case 'schema':     return <SchemaBlock asset={block.asset} fields={block.fields} onAsk={onAsk} />;
     case 'quality':    return <QualityBlock block={block} onAsk={onAsk} />;
+    case 'pipeline':   return <PipelineBlock block={block} />;
     default:           return null;
   }
 }
@@ -255,27 +256,45 @@ function AssetsBlock({ assets, onAsk }: { assets: AssetCard[]; onAsk: (q: string
   );
 }
 
+const ENTITY_STYLE: Record<string, { dot: string; badge: string; label: string }> = {
+  topic:     { dot: 'bg-blue-400',   badge: 'text-blue-300 bg-blue-500/10 border-blue-500/30',   label: 'Kafka' },
+  table:     { dot: 'bg-teal-400',   badge: 'text-teal-300 bg-teal-500/10 border-teal-500/30',   label: 'Table' },
+  pipeline:  { dot: 'bg-orange-400', badge: 'text-orange-300 bg-orange-500/10 border-orange-500/30', label: 'Pipeline' },
+  dashboard: { dot: 'bg-purple-400', badge: 'text-purple-300 bg-purple-500/10 border-purple-500/30', label: 'Dashboard' },
+};
+
+function nodeStyle(entityType: string) {
+  return ENTITY_STYLE[entityType?.toLowerCase()] ?? ENTITY_STYLE.table;
+}
+
 function LineageNodeRow({ node, tone }: { node: LineageNode; tone: 'up' | 'down' }) {
-  const color = tone === 'up' ? 'bg-blue-400' : 'bg-green-400';
-  // entity type inferred from FQN service prefix
-  const kind = node.fqn?.startsWith('cdp_kafka') ? 'topic'
-    : node.fqn?.startsWith('cdp_superset') ? 'dashboard'
-    : node.fqn?.startsWith('cdp_mlflow') ? 'ml model'
-    : 'table';
+  const et = (node as any).entity_type ?? (node.fqn?.startsWith('cdp_kafka') ? 'topic' : 'table');
+  const s = nodeStyle(et);
   return (
-    <div className="flex items-start gap-2.5 py-1.5">
-      <span className={`w-1.5 h-1.5 rounded-full ${color} mt-1.5 flex-shrink-0`} />
-      <div className="min-w-0">
-        <div className="text-sm text-agent-text-primary font-mono truncate">{node.name}</div>
-        <div className="text-xs text-agent-text-secondary">{kind}</div>
-      </div>
+    <div className="flex items-center gap-2.5 py-1">
+      <span className={`w-1.5 h-1.5 rounded-full ${s.dot} flex-shrink-0`} />
+      <span className="text-sm text-agent-text-primary font-mono truncate flex-1">{node.name}</span>
+      <span className={`text-xs px-1.5 py-0.5 rounded border font-semibold flex-shrink-0 ${s.badge}`}>{s.label}</span>
     </div>
   );
 }
 
-function LineageBlock({ asset, upstream, downstream, edgeCount, onAsk }: {
-  asset: string; upstream: LineageNode[]; downstream: LineageNode[]; edgeCount: number; onAsk: (q: string) => void;
+function LineageBlock({ asset, upstream, downstream, edgeCount, graph, onAsk }: {
+  asset: string; upstream: LineageNode[]; downstream: LineageNode[]; edgeCount: number;
+  graph?: { nodes: Array<LineageNode & { depth: number; side: string; entity_type?: string }>; edges: { from: string; to: string }[] };
+  onAsk: (q: string) => void;
 }) {
+  // Group all graph nodes by depth so we can show the full N-hop chain.
+  const byDepth = new Map<number, NonNullable<typeof graph>['nodes']>();
+  for (const n of graph?.nodes ?? []) {
+    if (!byDepth.has(n.depth)) byDepth.set(n.depth, []);
+    byDepth.get(n.depth)!.push(n);
+  }
+  const allDepths   = Array.from(byDepth.keys()).sort((a, b) => a - b);
+  const upDepths    = allDepths.filter(d => d < 0).reverse(); // most-distant first (top of card)
+  const downDepths  = allDepths.filter(d => d > 0);
+  const useGraph    = (graph?.nodes?.length ?? 0) > 0;
+
   return (
     <div className="border border-agent-dark-border rounded-xl overflow-hidden bg-agent-dark-surface">
       <div className="flex items-center gap-2 px-4 py-2.5 border-b border-agent-dark-border">
@@ -283,30 +302,94 @@ function LineageBlock({ asset, upstream, downstream, edgeCount, onAsk }: {
         <span className="text-xs font-semibold text-agent-text-primary uppercase tracking-wider">Lineage</span>
         <span className="text-xs text-agent-text-secondary ml-auto">{edgeCount} edge{edgeCount !== 1 ? 's' : ''}</span>
       </div>
-      <div className="p-4 grid grid-cols-[1fr_auto_1fr] gap-4 items-center">
-        {/* upstream */}
-        <div>
-          <div className="text-xs font-semibold text-blue-300/80 uppercase tracking-wider mb-1">Upstream ({upstream.length})</div>
-          {upstream.length ? upstream.map((n, i) => <LineageNodeRow key={i} node={n} tone="up" />)
-            : <div className="text-xs text-agent-text-secondary py-1.5">— none —</div>}
+
+      {useGraph ? (
+        // ── N-hop pipeline flow ────────────────────────────────────────────
+        <div className="px-4 py-3 space-y-1">
+          {upDepths.map((d, di) => {
+            const nodes = byDepth.get(d)!;
+            const hopLabel = Math.abs(d) === 1 ? 'direct source' : `${Math.abs(d)} hops up`;
+            return (
+              <div key={d}>
+                <div className="text-xs text-blue-300/50 mb-1 ml-0.5">{hopLabel}</div>
+                <div className="pl-2 border-l-2 border-blue-500/20 space-y-0.5">
+                  {nodes.map((n, i) => (
+                    <div key={i} className="flex items-center gap-2 py-0.5">
+                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${nodeStyle(n.entity_type ?? '').dot}`} />
+                      <span className="font-mono text-sm text-agent-text-primary truncate flex-1">{n.name}</span>
+                      <span className={`text-xs px-1.5 py-0.5 rounded border font-semibold flex-shrink-0 ${nodeStyle(n.entity_type ?? '').badge}`}>
+                        {nodeStyle(n.entity_type ?? '').label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                {/* connector arrow */}
+                <div className="flex items-center ml-2 my-1">
+                  <ChevronDown size={12} className="text-agent-dark-border" />
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Current asset */}
+          <div className="rounded-lg bg-cloudera/15 border border-cloudera/40 px-3 py-2 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-cloudera flex-shrink-0" />
+            <span className="font-mono text-sm font-semibold text-cloudera flex-1">{asset.split('.').pop()}</span>
+            <span className="text-xs text-agent-text-secondary">current</span>
+          </div>
+
+          {downDepths.map(d => {
+            const nodes = byDepth.get(d)!;
+            const hopLabel = d === 1 ? 'direct consumer' : `${d} hops down`;
+            return (
+              <div key={d}>
+                <div className="flex items-center ml-2 my-1">
+                  <ChevronDown size={12} className="text-agent-dark-border" />
+                </div>
+                <div className="text-xs text-green-300/50 mb-1 ml-0.5">{hopLabel}</div>
+                <div className="pl-2 border-l-2 border-green-500/20 space-y-0.5">
+                  {nodes.map((n, i) => (
+                    <div key={i} className="flex items-center gap-2 py-0.5">
+                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${nodeStyle(n.entity_type ?? '').dot}`} />
+                      <span className="font-mono text-sm text-agent-text-primary truncate flex-1">{n.name}</span>
+                      <span className={`text-xs px-1.5 py-0.5 rounded border font-semibold flex-shrink-0 ${nodeStyle(n.entity_type ?? '').badge}`}>
+                        {nodeStyle(n.entity_type ?? '').label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+          {downDepths.length === 0 && upDepths.length > 0 && (
+            <div className="text-xs text-agent-text-secondary mt-1 ml-0.5">No downstream consumers</div>
+          )}
         </div>
-        {/* current */}
-        <div className="flex flex-col items-center">
-          <div className="px-3 py-2 rounded-lg bg-cloudera/15 border border-cloudera/40 text-center">
-            <div className="text-xs font-mono font-semibold text-cloudera whitespace-nowrap">{asset.split('.').pop()}</div>
-            <div className="text-xs text-agent-text-secondary">this asset</div>
+      ) : (
+        // ── Fallback: flat 1-hop 3-column layout ──────────────────────────
+        <div className="p-4 grid grid-cols-[1fr_auto_1fr] gap-4 items-center">
+          <div>
+            <div className="text-xs font-semibold text-blue-300/80 uppercase tracking-wider mb-1">Upstream ({upstream.length})</div>
+            {upstream.length ? upstream.map((n, i) => <LineageNodeRow key={i} node={n} tone="up" />)
+              : <div className="text-xs text-agent-text-secondary py-1.5">— none —</div>}
+          </div>
+          <div className="flex flex-col items-center">
+            <div className="px-3 py-2 rounded-lg bg-cloudera/15 border border-cloudera/40 text-center">
+              <div className="text-xs font-mono font-semibold text-cloudera whitespace-nowrap">{asset.split('.').pop()}</div>
+              <div className="text-xs text-agent-text-secondary">this asset</div>
+            </div>
+          </div>
+          <div>
+            <div className="text-xs font-semibold text-green-300/80 uppercase tracking-wider mb-1">Downstream ({downstream.length})</div>
+            {downstream.length ? downstream.map((n, i) => <LineageNodeRow key={i} node={n} tone="down" />)
+              : <div className="text-xs text-agent-text-secondary py-1.5">— none —</div>}
           </div>
         </div>
-        {/* downstream */}
-        <div>
-          <div className="text-xs font-semibold text-green-300/80 uppercase tracking-wider mb-1">Downstream ({downstream.length})</div>
-          {downstream.length ? downstream.map((n, i) => <LineageNodeRow key={i} node={n} tone="down" />)
-            : <div className="text-xs text-agent-text-secondary py-1.5">— none —</div>}
-        </div>
-      </div>
-      <div className="px-4 pb-3 flex gap-2">
-        <button onClick={() => onAsk(`Run a query on ${asset}`)}
-          className="text-xs text-cloudera hover:underline">Query this asset →</button>
+      )}
+
+      <div className="px-4 pb-3 pt-2 flex gap-3 border-t border-agent-dark-border">
+        <button onClick={() => onAsk(`Run a query on ${asset}`)} className="text-xs text-cloudera hover:underline">Query →</button>
+        <button onClick={() => onAsk(`Check data quality of ${asset}`)} className="text-xs text-cloudera hover:underline">Quality →</button>
       </div>
     </div>
   );
@@ -376,6 +459,63 @@ function SchemaBlock({ asset, fields, onAsk }: { asset: string; fields: Array<{ 
       <div className="px-4 pb-3 flex gap-3">
         <button onClick={() => onAsk(`Show me the lineage of ${asset}`)} className="text-xs text-cloudera hover:underline">Lineage →</button>
         <button onClick={() => onAsk(`Show 10 rows from ${asset}`)} className="text-xs text-cloudera hover:underline">Sample rows →</button>
+      </div>
+    </div>
+  );
+}
+
+function PipelineBlock({ block }: { block: Extract<ChatBlock, { type: 'pipeline' }> }) {
+  const download = () => {
+    const blob = new Blob([JSON.stringify(block.flow, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${block.flow_name}.flow.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  const sinkLabel = block.sink.table ? `${block.sink.type} · ${block.sink.table}` : block.sink.type;
+  return (
+    <div className="border border-agent-dark-border rounded-xl overflow-hidden bg-agent-dark-surface">
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-agent-dark-border">
+        <Workflow size={14} className="text-orange-400" />
+        <span className="text-xs font-semibold text-agent-text-primary uppercase tracking-wider">NiFi pipeline</span>
+        <span className="text-xs text-agent-text-secondary ml-auto">{block.processors.length} processors · {block.connection_count} connections</span>
+      </div>
+      <div className="px-4 py-3 space-y-3">
+        {/* source → sink flow */}
+        <div className="flex items-center gap-2 text-xs">
+          <span className="px-2 py-1 rounded font-mono text-blue-300 bg-blue-500/10 border border-blue-500/30 truncate">{block.source.name}</span>
+          <ChevronRight size={14} className="text-agent-text-secondary flex-shrink-0" />
+          <span className="px-2 py-1 rounded font-mono text-teal-300 bg-teal-500/10 border border-teal-500/30 truncate">{sinkLabel}</span>
+        </div>
+        {/* processor chain */}
+        <div className="flex flex-wrap items-center gap-1">
+          {block.processors.map((p, i) => (
+            <span key={i} className="flex items-center gap-1">
+              <span className="text-xs font-mono text-agent-text-primary bg-agent-dark border border-agent-dark-border rounded px-1.5 py-0.5">{p}</span>
+              {i < block.processors.length - 1 && <ChevronRight size={12} className="text-agent-text-secondary" />}
+            </span>
+          ))}
+        </div>
+        {/* parameters to fill */}
+        {block.parameters_to_fill.length > 0 && (
+          <div className="space-y-1">
+            <div className="text-xs text-agent-text-secondary">Fill in before starting in NiFi:</div>
+            <div className="flex flex-wrap gap-1">
+              {block.parameters_to_fill.map((p, i) => (
+                <span key={i} className={`text-xs font-mono px-1.5 py-0.5 rounded border ${p.sensitive ? 'text-red-300 bg-red-500/10 border-red-500/30' : 'text-amber-300 bg-amber-500/10 border-amber-500/30'}`} title={p.description}>
+                  {p.name}{p.sensitive ? ' 🔒' : ''}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="px-4 pb-3">
+        <button onClick={download} className="flex items-center gap-1.5 text-xs text-cloudera hover:underline">
+          <Download size={13} /> Download {block.flow_name}.flow.json
+        </button>
       </div>
     </div>
   );

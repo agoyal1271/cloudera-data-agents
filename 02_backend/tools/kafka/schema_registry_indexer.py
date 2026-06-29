@@ -1,10 +1,9 @@
 """
-Schema Registry indexer — fetches all schemas and stores them in the local SQLite cache.
+Schema Registry indexer — fetches all schemas from Cloudera SR and caches them.
 
-Cloudera SR  → one call to /api/v1/schemaregistry/schemas/aggregated (fast, even at 10k+ topics)
-Confluent SR → lists /subjects then batch-fetches each schema
-
-Set SCHEMA_REGISTRY_TYPE=cloudera|confluent in .env (default: cloudera).
+Uses the Cloudera native aggregated endpoint:
+  GET /api/v1/schemaregistry/schemas/aggregated
+One call returns all schemas including latest schemaText. Fast even at 10k+ topics.
 """
 import logging
 import threading
@@ -48,24 +47,20 @@ def run_index() -> dict:
     Returns {"indexed": N, "sr_type": "...", "error": "..."}.
     Thread-safe — safe to call from a background task.
     """
-    from config import SCHEMA_REGISTRY_URL, SCHEMA_REGISTRY_TYPE
+    from config import SCHEMA_REGISTRY_URL
     from tools.kafka.schema_registry_cache import init_db, store_schemas_bulk
 
-    _set(status="indexing", started_at=time.time(), error=None, sr_type=SCHEMA_REGISTRY_TYPE)
+    _set(status="indexing", started_at=time.time(), error=None, sr_type="cloudera")
     init_db()
 
     schemas = []
     sr_count = 0
 
-    # Try to fetch from live Schema Registry
     if SCHEMA_REGISTRY_URL:
         try:
-            if SCHEMA_REGISTRY_TYPE == "cloudera":
-                schemas = _index_cloudera()
-            else:
-                schemas = _index_confluent()
+            schemas = _index_cloudera()
             sr_count = len(schemas)
-            logger.info(f"[sr_indexer] Fetched {sr_count} schemas from live SR")
+            logger.info(f"[sr_indexer] Fetched {sr_count} schemas from Cloudera SR")
         except Exception as e:
             logger.warning(f"[sr_indexer] Live SR fetch failed ({e}), using offline cache")
             # Fallback: use offline cache
@@ -90,12 +85,12 @@ def run_index() -> dict:
 
         _set(status="done", total=count, finished_at=time.time())
         logger.info(f"[sr_indexer] Indexed {count} total schemas ({sr_count} from SR + {len(schemas)-sr_count} T-Life)")
-        return {"indexed": count, "sr_type": SCHEMA_REGISTRY_TYPE, "tlife_demo_topics": len(schemas)-sr_count}
+        return {"indexed": count, "sr_type": "cloudera", "tlife_demo_topics": len(schemas) - sr_count}
 
     except Exception as e:
         _set(status="error", error=str(e), finished_at=time.time())
         logger.warning(f"[sr_indexer] Indexing failed: {e}")
-        return {"indexed": 0, "error": str(e), "sr_type": SCHEMA_REGISTRY_TYPE}
+        return {"indexed": 0, "error": str(e), "sr_type": "cloudera"}
 
 
 # ── Cloudera SR ───────────────────────────────────────────────────────────────
@@ -151,46 +146,6 @@ def _index_cloudera() -> List[dict]:
             "version": latest.get("version"),
             "schema": latest.get("schemaText") or latest.get("schema", ""),
         })
-
-    return schemas
-
-
-# ── Confluent SR ──────────────────────────────────────────────────────────────
-
-def _index_confluent() -> List[dict]:
-    """
-    Confluent SR: list subjects then fetch each schema sequentially.
-    For large registries (10k+) consider running this in a background thread.
-    """
-    from tools.kafka.schema_registry import _get_json
-
-    subjects = _get_json("/subjects")
-    if not isinstance(subjects, list):
-        logger.warning(f"[sr_indexer] /subjects returned unexpected type: {type(subjects)}")
-        return []
-
-    logger.info(f"[sr_indexer] Confluent SR has {len(subjects)} subjects")
-    schemas = []
-    for subject in subjects:
-        try:
-            data = _get_json(f"/subjects/{subject}/versions/latest")
-            # Derive topic name: strip -value / -key suffix
-            if subject.endswith("-value"):
-                topic = subject[:-6]
-            elif subject.endswith("-key"):
-                topic = subject[:-4]
-            else:
-                topic = subject
-            schemas.append({
-                "name": subject,
-                "topic_name": topic,
-                "id": data.get("id"),
-                "version": data.get("version"),
-                "schema": data.get("schema", ""),
-                "type": "avro",
-            })
-        except Exception as e:
-            logger.debug(f"[sr_indexer] skip {subject!r}: {e}")
 
     return schemas
 

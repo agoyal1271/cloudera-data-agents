@@ -60,8 +60,11 @@ export function streamSupervisor(
   onDone?: () => void,
   onError?: (err: Error) => void,
   contextAsset?: string,
+  sessionId?: string,
 ): () => void {
-  return streamSSE('/api/supervisor/chat', { message, context_asset: contextAsset ?? null }, onEvent, onDone, onError);
+  return streamSSE('/api/supervisor/chat',
+    { message, context_asset: contextAsset ?? null, session_id: sessionId ?? null },
+    onEvent, onDone, onError);
 }
 
 export function streamAnalyst(

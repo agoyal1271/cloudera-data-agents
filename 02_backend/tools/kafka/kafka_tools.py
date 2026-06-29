@@ -33,6 +33,15 @@ MOCK_TOPICS = {
         "last_message_ts": "2026-05-09T09:16:01Z",
         "mock": True,
     },
+    "order-events": {
+        "partitions": 12,
+        "replication_factor": 3,
+        "estimated_messages": 9_840_000,
+        "last_message_ts": "2026-06-24T11:47:03Z",
+        "schema_type": "avro",
+        "description": "Real-time e-commerce order lifecycle events — source of the Order Intelligence pipeline",
+        "mock": True,
+    },
 }
 
 MOCK_MESSAGES = {
@@ -49,6 +58,36 @@ MOCK_MESSAGES = {
     ],
     "payment-transactions": [
         {"txn_id": "TXN-88821", "amount": 250.00, "currency": "USD", "merchant": "ACME Corp", "status": "SETTLED"},
+    ],
+    "order-events": [
+        {
+            "order_id": "ORD-20260624-000142", "customer_id": "C-30021", "product_id": "PROD-7712",
+            "quantity": 3, "unit_price": 89.99, "discount_pct": 0.10,
+            "order_status": "CONFIRMED", "channel": "WEB",
+            "region": "US_EAST", "payment_method": "CARD",
+            "is_first_order": False, "event_timestamp": 1750762023000,
+        },
+        {
+            "order_id": "ORD-20260624-000143", "customer_id": "C-85441", "product_id": "PROD-3301",
+            "quantity": 1, "unit_price": 349.00, "discount_pct": None,
+            "order_status": "PENDING", "channel": "MOBILE",
+            "region": "EU", "payment_method": "BANK_TRANSFER",
+            "is_first_order": True, "event_timestamp": 1750762031000,
+        },
+        {
+            "order_id": "ORD-20260624-000144", "customer_id": "C-10293", "product_id": "PROD-5509",
+            "quantity": 2, "unit_price": 24.50, "discount_pct": 0.25,
+            "order_status": "SHIPPED", "channel": "PARTNER_API",
+            "region": "US_WEST", "payment_method": "WALLET",
+            "is_first_order": False, "event_timestamp": 1750762044000,
+        },
+        {
+            "order_id": "ORD-20260624-000145", "customer_id": "C-72019", "product_id": "PROD-1102",
+            "quantity": 5, "unit_price": 12.99, "discount_pct": 0.05,
+            "order_status": "DELIVERED", "channel": "WEB",
+            "region": "APAC", "payment_method": "CARD",
+            "is_first_order": False, "event_timestamp": 1750762059000,
+        },
     ],
 }
 

@@ -27,6 +27,12 @@ export interface RootCause {
   driver: string;
 }
 
+export interface PipelineParam {
+  name: string;
+  sensitive: boolean;
+  description: string;
+}
+
 export type ChatBlock =
   | { type: 'thinking'; text: string }
   | { type: 'step'; label: string; detail?: string }
@@ -36,6 +42,7 @@ export type ChatBlock =
   | { type: 'sql_result'; asset: string; sql: string; columns: string[]; rows: string[][]; row_count?: number; executed_on?: string; error?: string }
   | { type: 'schema'; asset: string; asset_type: string; fields: Array<{ name: string; type?: string }> }
   | { type: 'quality'; asset: string; overall_score: number; counts: { pass: number; warn: number; fail: number }; checks: QualityCheck[]; total_rows: number; trend: QualityTrend | null; root_cause: RootCause | null; written_to_om: boolean; ambient?: boolean }
+  | { type: 'pipeline'; flow_name: string; source: { type: string; name: string }; sink: { type: string; table?: string }; processors: string[]; controller_services: string[]; connection_count: number; parameters_to_fill: PipelineParam[]; flow: unknown }
   | { type: 'caveat'; asset: string; level: string; direction: string; text: string }
   | { type: 'context'; asset: string; asset_type?: string }
   | { type: 'provenance'; spans: ProvenanceSpan[]; summary: ProvenanceSummary }

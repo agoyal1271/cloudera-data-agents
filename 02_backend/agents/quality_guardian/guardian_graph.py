@@ -66,6 +66,7 @@ class GuardianState(TypedDict, total=False):
     fields: list
     schema: dict
     version: Optional[str]
+    om_meta: Optional[dict]   # {tags, owner, tier} from OpenMetadata — enriches the scorecard
     basic: Optional[dict]
     validation: Optional[dict]
     error: Optional[str]
@@ -74,8 +75,29 @@ class GuardianState(TypedDict, total=False):
 
 # ── PROFILE nodes (stages A + B + C) ──────────────────────────────────────────
 
+async def _fetch_om_meta(asset: str) -> Optional[dict]:
+    """Pull classification metadata (tags, owner, tier) from OpenMetadata — best-effort.
+    Uses the async httpx client path so it doesn't consume a thread-pool slot."""
+    try:
+        from tools.openmetadata.client import async_find_table_by_name, async_get_entity_by_fqn
+        entity = await async_find_table_by_name(asset)
+        if not entity or not entity.get("id"):
+            return None
+        full = await async_get_entity_by_fqn(entity.get("fqn", asset))
+        if not full:
+            return None
+        tags = [t.get("tagFQN") for t in full.get("tags", []) if t.get("tagFQN")]
+        owner = (full.get("owner") or {}).get("name") or (full.get("owner") or {}).get("displayName")
+        tier  = next((t for t in tags if t and "tier" in t.lower()), None)
+        return {"tags": tags, "owner": owner, "tier": tier}
+    except Exception as e:
+        logger.debug(f"[guardian] OM meta fetch failed (non-fatal): {e}")
+        return None
+
+
 async def p_resolve(state: GuardianState, writer: StreamWriter) -> dict:
-    """Resolve schema + data version server-side (the boundary never trusts the client)."""
+    """Resolve schema + data version server-side (the boundary never trusts the client).
+    In parallel, fetch OM classification metadata (tags, owner, tier) — best-effort."""
     asset, goal = state["asset"], state.get("goal", "")
     writer(_emit("started", asset=asset, goal=goal, mode="profile"))
     writer(_emit("step", name="resolve_schema", status="running"))
@@ -85,12 +107,21 @@ async def p_resolve(state: GuardianState, writer: StreamWriter) -> dict:
     prefetched = state.get("fields")
     if prefetched:
         schema = {f["name"]: f.get("type", "string") for f in prefetched}
+        # Run OM fetch in parallel while we emit the cached schema event.
+        om_meta = await _fetch_om_meta(asset)
         writer(_emit("schema", asset=asset, reused=True,
                      columns=[{"name": n, "type": t} for n, t in schema.items()]))
         writer(_emit("step", name="resolve_schema", status="complete", detail="reused upstream schema"))
-        return {"fields": prefetched, "schema": schema, "version": state.get("version")}
+        if om_meta:
+            writer(_emit("om_context", asset=asset, **om_meta))
+        return {"fields": prefetched, "schema": schema, "version": state.get("version"),
+                "om_meta": om_meta}
 
-    meta = await _core._describe_meta(asset)
+    # No prefetched schema — resolve live and fetch OM meta in parallel.
+    meta, om_meta = await asyncio.gather(
+        _core._describe_meta(asset),
+        _fetch_om_meta(asset),
+    )
     fields = (meta or {}).get("fields", [])
     if not fields:
         writer(_emit("error", message=f"Could not resolve schema for {asset}"))
@@ -100,7 +131,9 @@ async def p_resolve(state: GuardianState, writer: StreamWriter) -> dict:
     schema = {f["name"]: f.get("type", "string") for f in fields}
     writer(_emit("schema", asset=asset, columns=[{"name": n, "type": t} for n, t in schema.items()]))
     writer(_emit("step", name="resolve_schema", status="complete"))
-    return {"fields": fields, "schema": schema, "version": version}
+    if om_meta:
+        writer(_emit("om_context", asset=asset, **om_meta))
+    return {"fields": fields, "schema": schema, "version": version, "om_meta": om_meta}
 
 
 async def p_cached(state: GuardianState, writer: StreamWriter) -> dict:
@@ -147,10 +180,13 @@ async def p_basic(state: GuardianState, writer: StreamWriter) -> dict:
         writer(_emit("error", message=f"Basic checks failed: {e}"))
         return {"error": "basic_failed"}
 
+    om_meta = state.get("om_meta") or {}
     writer(_emit("basic_scorecard", asset=asset,
                  overall_score=basic["overall_score"], counts=basic["counts"],
                  total_rows=basic["total_rows"], driver=basic["driver"],
-                 checks=basic["checks"], scope="full", exact=True))
+                 checks=basic["checks"], scope="full", exact=True,
+                 om_tags=om_meta.get("tags"), om_owner=om_meta.get("owner"),
+                 om_tier=om_meta.get("tier")))
     writer(_emit("step", name="basic_checks", status="complete"))
     return {"basic": basic}
 

@@ -29,12 +29,22 @@ Examples:
 Public entry: run_supervisor(message, context_asset) → async stream of SSE events.
 """
 
+import asyncio
 import logging
 import re
-from typing import AsyncGenerator, Optional, TypedDict
+from typing import Annotated, AsyncGenerator, Optional, TypedDict
 
 from langgraph.graph import END, StateGraph
 from langgraph.types import StreamWriter
+
+
+def _append_history(existing: list, new: list) -> list:
+    """Reducer: accumulate conversation turns across graph passes (one session)."""
+    return (existing or []) + (new or [])
+
+
+# Keep session memory bounded — only the last N turns are kept in state.
+_MAX_HISTORY_TURNS = 24
 
 from agents.quality_guardian.guardian_graph import run_quality_guardian
 # Optimized retrieval + lightweight classify already live in the chat router; reuse
@@ -50,6 +60,10 @@ AGENT_ID = "supervisor"
 _DOTTED = re.compile(r"\b[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*\b", re.I)
 _DISCOVER_CUES = ("find", "search", "discover", "show me", "give me", "list",
                   "assets", "data about", "tables with", "which table", "what data")
+_LINEAGE_CUES = ("lineage", "how is", "how's", "how was", "formed", "built", "build",
+                 "derived", "computed", "constructed", "produced", "comes from", "come from",
+                 "where does", "upstream", "downstream", "depends on", "feeds", "fed by",
+                 "origin", "source of", "made from", "made of", "pipeline that")
 _QUALITY_CUES = ("quality", "clean", "trust", "reliab", "valid", "accurate")
 _PIPELINE_CUES = ("pipeline", "nifi", "flow", "ingest", "load into", "build a flow")
 _HEAL_CUES = ("heal", "self-heal", "monitor", "health", "broken", "failing", "fix the")
@@ -57,7 +71,10 @@ _ONBOARD_CUES = ("onboard", "end to end", "end-to-end", "set up ingestion", "ful
 _ANALYST_CUES = ("how many", "how much", "average", "avg", "count of", "total ", "sum of",
                  "top ", "most ", "least ", "distribution", "trend", "anomal", "interesting",
                  "tell me about", "explain", "what is the", "what's the", "compare", "per ",
-                 "group by", "analyze", "analyse", "insight", "breakdown")
+                 "group by", "analyze", "analyse", "insight", "breakdown",
+                 # follow-up phrasings that lean on conversation context
+                 "break it down", "break down", "broken down", "drill", "slice by",
+                 "split by", "by region", "by category", "by channel", "by day", "by month")
 
 _DEFAULT_SINK = "adls_iceberg"
 
@@ -83,6 +100,8 @@ class SupervisorState(TypedDict, total=False):
     # request
     message: str
     context_asset: Optional[str]
+    # session memory — accumulates across turns (persisted by the checkpointer)
+    history: Annotated[list, _append_history]
     # plan / routing
     intent: str
     plan: list          # ordered specialists still to run, e.g. ["scout", "guardian"]
@@ -93,6 +112,7 @@ class SupervisorState(TypedDict, total=False):
     fields: Optional[list]      # resolved schema (list of {name,type}) — the reuse payload
     version: Optional[str]
     discovered: list
+    lineage: Optional[dict]
     quality: Optional[dict]
     pipeline: Optional[dict]
     health: Optional[dict]
@@ -114,6 +134,10 @@ async def route_node(state: SupervisorState, writer: StreamWriter) -> dict:
     if any(c in ml for c in _ONBOARD_CUES):
         plan, intent = ["scout", "guardian", "pipeline", "heal"], "onboard"
     else:
+        # Lineage is checked before discover: "how is X built" should trace the
+        # pipeline, not run a generic catalog search.
+        if any(c in ml for c in _LINEAGE_CUES):
+            plan.append("lineage")
         if any(c in ml for c in _DISCOVER_CUES):
             plan.append("scout")
         if _wants_quality(message) or any(c in ml for c in _QUALITY_CUES):
@@ -125,19 +149,25 @@ async def route_node(state: SupervisorState, writer: StreamWriter) -> dict:
         if any(c in ml for c in _ANALYST_CUES):
             plan.append("analyst")
 
-    asset = context_asset
+    # Carry the focus asset across turns: explicit context wins, else the asset the
+    # session last settled on (loaded from the checkpointer) — so "check its quality"
+    # after "how is X built" still knows what "it" is.
+    asset = context_asset or state.get("asset")
     if not plan:                          # cues didn't decide → one LLM router call
         cls = await _classify(message, context_asset)
         intent = cls.get("intent", "smalltalk")
-        plan = {"discover": ["scout"], "quality": ["guardian"]}.get(intent, [])
+        plan = {"discover": ["scout"], "quality": ["guardian"],
+                "lineage": ["lineage"]}.get(intent, [])
         asset = asset or cls.get("asset")
     if not intent:
         intent = "onboard" if len(plan) >= 3 else (plan[0] if plan else "smalltalk")
 
     writer(_emit("plan", intent=intent, plan=plan,
-                 skipped=[a for a in ("scout", "guardian", "pipeline", "heal", "analyst") if a not in plan],
+                 skipped=[a for a in ("scout", "lineage", "guardian", "pipeline", "heal", "analyst") if a not in plan],
                  note="only these agents run — the rest are skipped"))
-    return {"intent": intent, "plan": plan, "asset": asset}
+    # Record the user turn in session memory (reducer appends).
+    return {"intent": intent, "plan": plan, "asset": asset,
+            "history": [{"role": "user", "content": message}]}
 
 
 async def supervisor_node(state: SupervisorState, writer: StreamWriter) -> dict:
@@ -189,6 +219,45 @@ async def scout_node(state: SupervisorState, writer: StreamWriter) -> dict:
                      asset_type=atype, field_count=len(norm), columns=norm,
                      note="schema from the catalog index — instant, no live describe"))
     return {"discovered": cards, "asset": asset, "asset_type": atype, "fields": fields, "version": None}
+
+
+async def lineage_node(state: SupervisorState, writer: StreamWriter) -> dict:
+    """Trace how an asset is formed — pull its OpenMetadata lineage graph and stream it."""
+    import json as _json
+    from routers.scout_chat_helpers import do_asset_lineage
+
+    asset = await _resolve_target(state, state["message"])
+    if not asset:
+        writer(_emit("error", message="Name a table to trace — e.g. “how is demo.order_analytics_mart built”."))
+        return {}
+
+    writer(_emit("agent_start", agent_name="Source Scout", role="lineage", asset=asset,
+                 note="tracing lineage in OpenMetadata"))
+    writer(_emit("step", name="lineage", status="running"))
+
+    packed = await do_asset_lineage(asset, depth=3)
+    blocks = []
+    try:
+        blocks = _json.loads(packed).get("_blocks", [])
+    except Exception:
+        pass
+
+    lineage_block = next((b for b in blocks if b.get("type") == "lineage"), None)
+    resolved = asset
+    if lineage_block:
+        resolved = lineage_block.get("asset", asset)
+        writer(_emit("lineage", asset=resolved,
+                     upstream=lineage_block.get("upstream", []),
+                     downstream=lineage_block.get("downstream", []),
+                     graph=lineage_block.get("graph", {"nodes": [], "edges": []}),
+                     edge_count=lineage_block.get("edge_count", 0)))
+        writer(_emit("blackboard", wrote=["asset"], asset=resolved,
+                     note=f"lineage: {lineage_block.get('edge_count', 0)} edges"))
+    else:
+        writer(_emit("text", text=f"No lineage is recorded for {resolved} in OpenMetadata yet."))
+
+    writer(_emit("step", name="lineage", status="complete"))
+    return {"asset": resolved, "lineage": lineage_block}
 
 
 async def _resolve_target(state: SupervisorState, message: str) -> Optional[str]:
@@ -259,6 +328,27 @@ async def pipeline_node(state: SupervisorState, writer: StreamWriter) -> dict:
     if pipeline:
         writer(_emit("blackboard", wrote=["pipeline"], flow_name=pipeline["flow_name"],
                      note="flow handed to the Healer for verification"))
+        # Record source → sink lineage in OpenMetadata (fire-and-forget; non-fatal).
+        # Sink table name mirrors the flow builder's convention: short name of the source asset.
+        _sink_table = asset.split(".")[-1].replace("-", "_") if asset else ""
+        _sink_fqn   = f"adls_iceberg.default.{_sink_table}" if _sink_table else ""
+        _src_type   = "topic" if (state.get("asset_type") == "kafka_topic") else "table"
+
+        async def _write_om_lineage():
+            try:
+                from tools.openmetadata.client import create_lineage_edge
+                await asyncio.to_thread(
+                    create_lineage_edge,
+                    asset, _src_type,
+                    _sink_fqn, "table",
+                    pipeline["flow_name"],
+                )
+                logger.info(f"[pipeline] OM lineage edge: {asset} → {_sink_fqn}")
+            except Exception as _e:
+                logger.debug(f"[pipeline] OM lineage write skipped: {_e}")
+
+        if asset and _sink_fqn:
+            asyncio.create_task(_write_om_lineage())
     return {"pipeline": pipeline}
 
 
@@ -298,8 +388,12 @@ async def analyst_node(state: SupervisorState, writer: StreamWriter) -> dict:
                  schema_reused=reused,
                  note=("reusing schema from the blackboard" if reused else "resolving the dataset itself")))
 
+    # Hand the prior conversation to the analyst so follow-ups resolve ("break THAT
+    # down by region" knows what "that" was).
+    history = (state.get("history") or [])[-_MAX_HISTORY_TURNS:]
     answer = None
-    async for ev in run_analyst(asset, state["message"], fields=fields, asset_type=atype):
+    async for ev in run_analyst(asset, state["message"], fields=fields, asset_type=atype,
+                                history=history):
         writer(ev)
         if ev.get("type") == "answer":
             answer = ev.get("text")
@@ -311,6 +405,8 @@ async def respond_node(state: SupervisorState, writer: StreamWriter) -> dict:
     ran, parts = [], []
     if state.get("discovered"):
         ran.append("scout"); parts.append(f"discovered {len(state['discovered'])}")
+    if state.get("lineage") is not None:
+        ran.append("lineage"); parts.append(f"lineage {(state.get('lineage') or {}).get('edge_count', 0)} edges")
     if state.get("quality") is not None:
         ran.append("guardian"); parts.append(f"quality {(state.get('quality') or {}).get('overall_score')}")
     if state.get("pipeline") is not None:
@@ -327,16 +423,22 @@ async def respond_node(state: SupervisorState, writer: StreamWriter) -> dict:
                  asset=state.get("asset"), agents_run=ran,
                  quality=state.get("quality"), pipeline=state.get("pipeline"),
                  health=state.get("health")))
-    return {}
+
+    # Record the assistant turn in session memory: the analyst's prose answer when
+    # there is one, else a compact recap of what ran (keeps follow-ups grounded).
+    assistant = state.get("analysis") or (
+        f"[{state.get('asset') or 'session'}] " + (" · ".join(parts) if parts else "nothing to run"))
+    return {"history": [{"role": "assistant", "content": str(assistant)[:1500]}]}
 
 
 # ── Graph assembly ────────────────────────────────────────────────────────────
 
-def build_supervisor_graph():
+def build_supervisor_graph(checkpointer=None):
     g = StateGraph(SupervisorState)
     g.add_node("route", route_node)
     g.add_node("supervisor", supervisor_node)
     g.add_node("scout", scout_node)
+    g.add_node("lineage", lineage_node)
     g.add_node("guardian", guardian_node)
     g.add_node("pipeline", pipeline_node)
     g.add_node("heal", heal_node)
@@ -346,33 +448,58 @@ def build_supervisor_graph():
     g.set_entry_point("route")
     g.add_edge("route", "supervisor")
     g.add_conditional_edges("supervisor", supervisor_route, {
-        "scout": "scout", "guardian": "guardian", "pipeline": "pipeline",
+        "scout": "scout", "lineage": "lineage", "guardian": "guardian", "pipeline": "pipeline",
         "heal": "heal", "analyst": "analyst", "respond": "respond",
     })
-    for spec in ("scout", "guardian", "pipeline", "heal", "analyst"):
+    for spec in ("scout", "lineage", "guardian", "pipeline", "heal", "analyst"):
         g.add_edge(spec, "supervisor")       # every specialist returns control to the hub
     g.add_edge("respond", END)
-    return g.compile()
+    return g.compile(checkpointer=checkpointer)
 
 
+# Uncheckpointed graph — kept for visualization/compat (run_supervisor uses the
+# session-aware one below).
 _GRAPH = build_supervisor_graph()
+
+# Session-aware graph, compiled once with the shared Postgres checkpointer.
+_SESSION_GRAPH = None
+
+
+async def _get_session_graph():
+    global _SESSION_GRAPH
+    if _SESSION_GRAPH is None:
+        from agents.common.session_store import get_checkpointer
+        saver = await get_checkpointer()          # None if Postgres is down → stateless
+        _SESSION_GRAPH = build_supervisor_graph(checkpointer=saver)
+    return _SESSION_GRAPH
 
 
 # ── Public entry point ────────────────────────────────────────────────────────
 
-async def run_supervisor(message: str, context_asset: Optional[str] = None) -> AsyncGenerator[dict, None]:
-    """Route a request through the specialists it needs, streaming their SSE events."""
+async def run_supervisor(message: str, context_asset: Optional[str] = None,
+                         session_id: Optional[str] = None) -> AsyncGenerator[dict, None]:
+    """Route a request through the specialists it needs, streaming their SSE events.
+
+    When a session_id is given (and Postgres is up), the run is checkpointed under
+    that thread — prior turns are reloaded so the conversation has memory.
+    """
     if not message:
         yield _emit("error", message="No message provided")
         return
+
+    graph = await _get_session_graph()
+    config: dict = {"recursion_limit": 40}        # full onboard chain is ~11 supersteps
+    if session_id:
+        config["configurable"] = {"thread_id": session_id}
+
+    # With a checkpointer, only the NEW turn is submitted — persisted state (history,
+    # focus asset) is merged in by LangGraph. Transient routing fields are reset.
     initial: SupervisorState = {
         "message": message, "context_asset": context_asset,
         "plan": [], "intent": "", "next": "",
     }
     try:
-        # full onboard chain is ~11 supersteps; give headroom.
-        async for event in _GRAPH.astream(initial, config={"recursion_limit": 40},
-                                          stream_mode="custom"):
+        async for event in graph.astream(initial, config=config, stream_mode="custom"):
             yield event
     except Exception as e:
         logger.error(f"[supervisor] graph run failed: {e}")

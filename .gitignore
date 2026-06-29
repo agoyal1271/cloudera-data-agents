@@ -55,6 +55,9 @@ node_modules/
 *.sqlite3
 *.pkl
 
+# Runtime memory snapshots (regenerated at startup)
+02_backend/memory/*.json
+
 # Decision logs (may contain runtime data)
 decisions/
 

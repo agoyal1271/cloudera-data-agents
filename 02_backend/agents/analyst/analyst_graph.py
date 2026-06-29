@@ -79,10 +79,12 @@ def _pin_table(sql: str, asset: str) -> str:
 class AnalystState(TypedDict, total=False):
     asset: str
     question: str
+    history: list          # prior conversation turns [{role, content}] for follow-up grounding
     fields: list
     asset_type: Optional[str]
     needs_sql: bool
     needs_lineage: bool
+    lineage_depth: int
     sql: str
     rows: list
     columns: list
@@ -130,17 +132,31 @@ async def resolve_node(state: AnalystState, writer: StreamWriter) -> dict:
     return {"fields": fields, "asset_type": atype}
 
 
+_FULL_LINEAGE_CUES = ("full lineage", "complete lineage", "all upstream", "all downstream",
+                      "entire lineage", "end to end", "end-to-end", "impact", "what breaks",
+                      "what will break", "who depends", "all dependencies")
+
 async def plan_node(state: AnalystState, writer: StreamWriter) -> dict:
     """Pick ONLY the tools this question needs — no fixed pipeline."""
     q = (state.get("question") or "").lower()
     schema_only = any(c in q for c in _SCHEMA_ONLY_CUES)
-    # SQL is the default for an Iceberg table unless it's a pure structure question.
     needs_sql = state.get("asset_type") == "iceberg_table" and not schema_only
     needs_lineage = any(c in q for c in _LINEAGE_CUES)
+
+    # Derive traversal depth from the question.
+    # Explicit number wins ("5 levels deep"); "full/impact/all" → 6; default → 3.
+    depth = 3
+    m = _re.search(r'(\d+)\s*(?:level|hop|depth|step)', q)
+    if m:
+        depth = min(int(m.group(1)), 10)
+    elif any(c in q for c in _FULL_LINEAGE_CUES):
+        depth = 6
+
     writer(_emit("plan", needs_sql=needs_sql, needs_lineage=needs_lineage,
+                 lineage_depth=depth,
                  skipped=[t for t, on in (("sql", needs_sql), ("lineage", needs_lineage)) if not on],
                  note="only the tools this question needs"))
-    return {"needs_sql": needs_sql, "needs_lineage": needs_lineage}
+    return {"needs_sql": needs_sql, "needs_lineage": needs_lineage, "lineage_depth": depth}
 
 
 async def gather_node(state: AnalystState, writer: StreamWriter) -> dict:
@@ -165,12 +181,28 @@ async def gather_node(state: AnalystState, writer: StreamWriter) -> dict:
     if state.get("needs_lineage"):
         writer(_emit("step", name="lineage", status="running"))
         try:
-            from tools.openmetadata.client import get_lineage_by_name
-            lin = await asyncio.to_thread(get_lineage_by_name, asset, "table")
-            if lin and (lin.get("upstream") or lin.get("downstream")):
-                lineage = {"upstream": lin.get("upstream", []), "downstream": lin.get("downstream", []),
-                           "edge_count": lin.get("edge_count")}
-                writer(_emit("lineage", asset=asset, **lineage))
+            from tools.openmetadata.client import (
+                get_lineage_by_name, async_enrich_lineage_graph, format_lineage_for_llm,
+            )
+            depth = state.get("lineage_depth") or 3
+            atype = "topic" if state.get("asset_type") == "kafka_topic" else "table"
+            lin = await asyncio.to_thread(get_lineage_by_name, asset, atype, depth, depth)
+            if lin and (lin.get("upstream") or lin.get("downstream") or
+                        (lin.get("graph") or {}).get("nodes")):
+                enriched = await async_enrich_lineage_graph(lin)
+                summary  = format_lineage_for_llm(enriched, asset)
+                lineage  = {
+                    "upstream":   enriched.get("upstream", []),
+                    "downstream": enriched.get("downstream", []),
+                    "graph":      enriched.get("graph"),
+                    "edge_count": enriched.get("edge_count"),
+                    "summary":    summary,
+                }
+                writer(_emit("lineage", asset=asset,
+                             upstream=lineage["upstream"],
+                             downstream=lineage["downstream"],
+                             edge_count=lineage["edge_count"],
+                             depth=depth))
         except Exception as e:
             logger.debug(f"[analyst] lineage lookup failed: {e}")
         writer(_emit("step", name="lineage", status="complete"))
@@ -234,8 +266,15 @@ async def _synthesize(state: AnalystState) -> str:
     quality = state.get("quality") or {}
     lineage = state.get("lineage")
     sql_error = state.get("sql_error")
+    history = state.get("history") or []
 
-    evidence: list[str] = [f"Question: {question}", f"Asset: {state.get('asset')}"]
+    evidence: list[str] = []
+    if history:
+        # Prior turns let the model resolve references ("that", "those regions",
+        # "the same but for last month") against what was already asked/answered.
+        convo = "\n".join(f"{h.get('role', 'user')}: {h.get('content', '')}" for h in history[-8:])
+        evidence.append(f"Conversation so far (for context, do not re-answer):\n{convo}\n")
+    evidence += [f"Question: {question}", f"Asset: {state.get('asset')}"]
     if sql_error:
         evidence.append(f"SQL error (no data): {sql_error}")
     elif rows is not None:
@@ -248,16 +287,29 @@ async def _synthesize(state: AnalystState) -> str:
     if quality.get("overall_score") is not None:
         evidence.append(f"Data-quality score (cached): {quality.get('overall_score')} · counts={quality.get('counts')}")
     if lineage:
-        evidence.append(f"Lineage: upstream={[u.get('name') for u in lineage.get('upstream', [])][:5]} "
-                        f"downstream={[d.get('name') for d in lineage.get('downstream', [])][:5]}")
+        if lineage.get("summary"):
+            evidence.append(f"Lineage graph (enriched, hop-by-hop):\n{lineage['summary']}")
+        else:
+            evidence.append(
+                f"Lineage: upstream={[u.get('name') for u in lineage.get('upstream', [])][:5]} "
+                f"downstream={[d.get('name') for d in lineage.get('downstream', [])][:5]}"
+            )
 
     system = (
-        "You are a data analyst. Answer the user's question using ONLY the evidence provided "
+        "You are a data analyst in an ongoing conversation. Use the 'Conversation so far' only to "
+        "interpret the current question (resolve references like 'that' or 'those'); answer the CURRENT "
+        "question using ONLY the evidence provided "
         "(query result rows, schema, quality, lineage). Never invent numbers not present in the rows. "
         "If the rows are empty or a SQL error is shown, say you could not answer and why. "
         "Only add a data-quality caveat when a score is provided AND it is below 80 (or a relevant "
         "column is clearly null-heavy); otherwise do not mention quality. "
-        "Be concise (2-4 sentences) and ALWAYS respond in plain English. "
+        "When a lineage graph is provided, reason over it hop by hop using the depth labels "
+        "(Hop -N = N hops upstream, Hop +N = N hops downstream). "
+        "For impact analysis ('what breaks', 'who depends on this'), list ALL downstream nodes "
+        "by hop, including their owners and PII/tier tags. "
+        "For provenance questions ('where does this come from'), trace the upstream chain. "
+        "Never guess relationships not present in the lineage graph. "
+        "Be concise (3-6 sentences for lineage questions, 2-4 for others) and respond in plain English. "
         "Do not restate the SQL — the UI already shows it."
     )
     user = "\n".join(evidence) + "\n\nAnswer:"
@@ -320,12 +372,18 @@ async def run_analyst(
     *,
     fields: Optional[list] = None,
     asset_type: Optional[str] = None,
+    history: Optional[list] = None,
 ) -> AsyncGenerator[dict, None]:
-    """Answer an open-ended question about one dataset, streaming SSE events."""
+    """Answer an open-ended question about one dataset, streaming SSE events.
+
+    `history` (prior [{role, content}] turns) is used only to interpret the current
+    question — it is not re-answered.
+    """
     if not asset or not question:
         yield _emit("error", message="asset and question are required")
         return
-    initial: AnalystState = {"asset": asset, "question": question, "fields": fields, "asset_type": asset_type}
+    initial: AnalystState = {"asset": asset, "question": question, "fields": fields,
+                             "asset_type": asset_type, "history": history or []}
     try:
         async for event in _GRAPH.astream(initial, stream_mode="custom"):
             yield event

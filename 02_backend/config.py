@@ -33,10 +33,6 @@ KAFKA_KERBEROS_KEYTAB = os.getenv("KAFKA_KERBEROS_KEYTAB", "")
 
 # Schema Registry
 SCHEMA_REGISTRY_URL = os.getenv("SCHEMA_REGISTRY_URL", "http://cdp-utility.cdp.local:8443/gateway/cdp-proxy-api/schema-registry")
-SCHEMA_REGISTRY_TYPE = os.getenv("SCHEMA_REGISTRY_TYPE", "cloudera")  # cloudera | confluent
-SCHEMA_REGISTRY_AUTH_TYPE = os.getenv("SCHEMA_REGISTRY_AUTH_TYPE", "NONE")  # NONE | KERBEROS | BASIC
-SCHEMA_REGISTRY_KEYTAB = os.getenv("SCHEMA_REGISTRY_KEYTAB", "")
-SCHEMA_REGISTRY_PRINCIPAL = os.getenv("SCHEMA_REGISTRY_PRINCIPAL", "") 
 
 # Iceberg
 ICEBERG_CATALOG_TYPE = os.getenv("ICEBERG_CATALOG_TYPE", "hadoop")

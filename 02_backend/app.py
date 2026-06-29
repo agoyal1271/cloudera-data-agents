@@ -45,19 +45,41 @@ async def _knox_refresh_loop():
             _log.warning(f"[knox_loop] refresh check failed: {exc}")
 
 
+async def _iceberg_catalog_refresh_loop():
+    """Background task: re-indexes the Iceberg catalog into Qdrant every 5 minutes.
+    Any table created in Impala (outside the agent) is discoverable within one cycle."""
+    import asyncio
+    from tools.iceberg.iceberg_tools import list_iceberg_tables, invalidate_iceberg_list_cache
+
+    _log = logging.getLogger(__name__)
+    while True:
+        await asyncio.sleep(300)   # 5-minute cycle
+        try:
+            invalidate_iceberg_list_cache()
+            tables = await asyncio.to_thread(list_iceberg_tables, True)
+            _log.debug(f"[catalog_loop] refreshed {len(tables)} tables into Qdrant")
+        except Exception as exc:
+            _log.debug(f"[catalog_loop] refresh skipped: {exc}")
+
+
 async def _llm_keepwarm_loop():
     """
     Keeps the local LLM loaded so the first Source Scout query isn't cold.
     Pings once at boot, then every 240 s — under Ollama's default 300 s idle-unload.
-    Cheap and best-effort: failures (model server down) are swallowed.
     """
     import asyncio
-    from routers.scout_chat import _classify
+    import httpx
+    from config import LLM_BASE_URL, LLM_MODEL, LLM_API_KEY
 
     _log = logging.getLogger(__name__)
     while True:
         try:
-            await _classify("ping", None)
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                await client.post(
+                    f"{LLM_BASE_URL}/chat/completions",
+                    json={"model": LLM_MODEL, "messages": [{"role": "user", "content": "ping"}], "max_tokens": 1},
+                    headers={"Authorization": f"Bearer {LLM_API_KEY}"},
+                )
         except Exception as exc:
             _log.debug(f"[llm_warm] ping failed: {exc}")
         await asyncio.sleep(240)
@@ -79,6 +101,17 @@ async def lifespan(app: FastAPI):
     # ── LLM keep-warm (avoid cold-model latency on the first query) ──────────
     llm_task = asyncio.create_task(_llm_keepwarm_loop())
     _log.info("[startup] LLM keep-warm loop started (pings every 240 s)")
+
+    catalog_task = asyncio.create_task(_iceberg_catalog_refresh_loop())
+    _log.info("[startup] Iceberg catalog refresh loop started (re-indexes every 300 s)")
+
+    # ── Session memory (Postgres checkpointer) ───────────────────────────────
+    try:
+        from agents.common.session_store import get_checkpointer
+        saver = await get_checkpointer()
+        _log.info(f"[startup] Session memory {'ON (Postgres)' if saver else 'OFF (Postgres unavailable)'}")
+    except Exception as exc:
+        _log.warning(f"[startup] Session memory init skipped: {exc}")
 
     # ── Schema Registry auto-index ───────────────────────────────────────────
     from config import SCHEMA_REGISTRY_URL
@@ -109,11 +142,28 @@ async def lifespan(app: FastAPI):
         except Exception as exc:
             _log.warning(f"[startup] SR auto-index skipped: {exc}")
 
+    # ── Iceberg catalog warm-up (populate Qdrant for discover search) ─────────
+    # list_iceberg_tables() indexes into Qdrant when it runs — calling it here
+    # ensures MOCK_TABLES (including order_analytics_mart etc.) are searchable
+    # before the first user query, even when the live catalog is unreachable.
+    try:
+        from tools.iceberg.iceberg_tools import list_iceberg_tables
+        tables = await asyncio.to_thread(list_iceberg_tables)
+        _log.info(f"[startup] Iceberg catalog warm-indexed ({len(tables)} tables)")
+    except Exception as exc:
+        _log.warning(f"[startup] Iceberg catalog warm-up skipped: {exc}")
+
     yield
 
     if knox_task:
         knox_task.cancel()
     llm_task.cancel()
+    catalog_task.cancel()
+    try:
+        from agents.common.session_store import close_checkpointer
+        await close_checkpointer()
+    except Exception:
+        pass
 
 
 app = FastAPI(title="Cloudera AI Agents", version="1.0.0", lifespan=lifespan)

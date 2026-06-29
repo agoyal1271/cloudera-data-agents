@@ -25,6 +25,7 @@ _SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
 class SupervisorRequest(BaseModel):
     message: str
     context_asset: Optional[str] = None
+    session_id: Optional[str] = None      # one conversation thread → durable memory
 
 
 def _stream(agen_factory):
@@ -45,4 +46,4 @@ async def chat(req: SupervisorRequest):
     """Route through the specialists this request needs; stream their events."""
     from agents.supervisor.supervisor_graph import run_supervisor
 
-    return _stream(lambda: run_supervisor(req.message, req.context_asset))
+    return _stream(lambda: run_supervisor(req.message, req.context_asset, req.session_id))

@@ -313,6 +313,7 @@ async def demo_workflow():
     print("   Goal: Discover, classify, validate, pipeline, and monitor 3 new Kafka topics\n")
 
     agents = [
+        ("Orchestrator", "Supervisor", "Coordinate end-to-end workflow across all agents"),
         ("Source Scout", "ReAct", "Discover revenue-related tables and topics"),
         ("Semantic Mapper", "Intelligence", "Detect field naming conflicts"),
         ("Metadata Curator", "Policy Engine", "Classify sensitivity + detect PII"),
@@ -321,7 +322,7 @@ async def demo_workflow():
         ("Pipeline Healer", "Reactive FSM", "Monitor and auto-heal"),
     ]
 
-    for i, (name, pattern, task) in enumerate(agents, 1):
+    for i, (name, pattern, task) in enumerate(agents, 0):
         print(f"\n{'─'*80}")
         print(f"STEP {i}: {name.upper()} ({pattern})")
         print(f"{'─'*80}")
@@ -346,26 +347,6 @@ async def demo_workflow():
         # input("\n▶️  Press ENTER to continue to next agent...")
         print("\n" + "─"*40)
 
-    # Orchestrator final step
-    print(f"\n{'─'*80}")
-    print("STEP 7: ORCHESTRATOR (Supervisor)")
-    print(f"{'─'*80}")
-    print("📌 Task: Coordinate all agents into single workflow\n")
-
-    orchestrator = MockAgent("Orchestrator")
-    async for event in orchestrator.run("Orchestrate end-to-end workflow"):
-        if event["type"] == "result":
-            print("✅ Workflow Summary:")
-            workflow = event["content"]["workflow"]
-            print(f"\n📊 Workflow Steps:")
-            for step in workflow["steps"]:
-                status_icon = "✅" if "COMPLETE" in step["status"] else "🔄"
-                print(f"   {status_icon} {step['step']}. {step['agent']}: {step['result']}")
-
-            print(f"\n📈 Metrics:")
-            metrics = workflow["metrics"]
-            for key, value in metrics.items():
-                print(f"   • {key.replace('_', ' ').title()}: {value}")
 
     print("\n" + "="*80)
     print("✨ DEMO COMPLETE!")

@@ -27,7 +27,9 @@ python launch.py
 # 3. Open browser
 # http://localhost:5173
 
-# 4. Follow DEMO_WORKFLOW.md for guided tour
+# 4. Click ORCHESTRATOR in left sidebar (primary entry point)
+
+# 5. Follow DEMO_WORKFLOW.md for guided tour
 ```
 
 ---
@@ -35,18 +37,47 @@ python launch.py
 ## 🎯 Demo at a Glance
 
 **Duration**: 15-20 minutes  
-**6 Agents Demonstrated**:
+**Primary Entry Point**: 🎯 **ORCHESTRATOR** (coordinates all agents)
+
+**6 Specialist Agents Demonstrated**:
 1. ✅ **Source Scout** (ReAct) — Discover data assets
 2. ✅ **Semantic Mapper** (Intelligence) — Map fields, detect conflicts
 3. ✅ **Metadata Curator** (Policy Engine) — Classify sensitivity & PII
 4. ✅ **Quality Guardian** (Evaluator) — Validate data quality
 5. ✅ **Pipeline Builder** (Tool-Use) — Generate Flink/NiFi/Kafka Connect
 6. ✅ **Pipeline Healer** (Reactive FSM) — Monitor & auto-heal
-7. ✅ **Orchestrator** (Supervisor) — Coordinate all agents
 
 ---
 
 ## 📺 Live Demo Walkthrough
+
+### STEP 0: Orchestrator (2–3 min) — START HERE! 🎯
+**UI Path**: Left sidebar → Orchestrator (⚡ icon)
+
+```
+Paste task: "I have 3 new data sources (Kafka topics). 
+             Discover them, classify sensitivity, validate quality, 
+             build pipeline, and monitor."
+
+↓
+Watch Orchestrator coordinate:
+  [1/5] Source Scout       → Discover 3 topics
+  [2/5] Metadata Curator   → Classify as RESTRICTED
+  [3/5] Quality Guardian   → Score 88/100
+  [4/5] Pipeline Builder   → Generate Flink SQL
+  [5/5] Pipeline Healer    → Start monitoring
+
+Show: 
+- Agent Coordination DAG (visual flow)
+- Data flowing between agents
+- Metrics: Cost, latency, success rate
+- Decision log (every action timestamped)
+```
+
+**Key talking point**:
+> "One command orchestrates 5 agents end-to-end. No manual handoff. Full transparency."
+
+---
 
 ### STEP 1: Source Scout (3–4 min)
 **UI Path**: Left sidebar → Source Scout
@@ -363,16 +394,18 @@ mkdir -p /tmp/iceberg-warehouse
 
 | Step | Duration | Agent |
 |------|----------|-------|
+| **0** | **2–3 min** | **Orchestrator (START HERE)** |
 | 1 | 3–4 min | Source Scout |
 | 2 | 2–3 min | Semantic Mapper |
 | 3 | 3–4 min | Metadata Curator |
 | 4 | 2–3 min | Quality Guardian |
 | 5 | 3–4 min | Pipeline Builder |
 | 6 | 2–3 min | Pipeline Healer |
-| 7 | 2–3 min | Orchestrator |
-| **Total** | **18–27 min** | All 6 + Orchestrator |
+| **Total** | **18–27 min** | Orchestrator + 6 Specialist Agents |
 
-(Can be shortened to 12 min if you skip details; can be extended to 30+ min if doing deep code walkthroughs)
+**Recommended flow**: Start with Orchestrator (2-3 min) to show end-to-end coordination, then optionally drill into each specialist agent for 3-4 min technical details.
+
+(Can be shortened to 5 min if you only show Orchestrator; can be extended to 30+ min if doing deep code walkthroughs of each agent)
 
 ---
 

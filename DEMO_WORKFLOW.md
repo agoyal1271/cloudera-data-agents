@@ -1,7 +1,7 @@
 # Cloudera AI Agents — Live Demo Workflow
 
 ## Overview
-This demo showcases all **6 autonomous agents** operating in sequence over Iceberg, Kafka, and Ozone. Each agent demonstrates a different agentic pattern with full transparency into LLM calls and decisions.
+This demo showcases the **Orchestrator** as the primary entry point, which coordinates all **6 autonomous agents** operating in sequence over Iceberg, Kafka, and Ozone. Each agent demonstrates a different agentic pattern with full transparency into LLM calls and decisions.
 
 **Duration**: ~15–20 minutes  
 **Prerequisites**: Ollama running on `:11434`, `.env` configured with Iceberg/Kafka endpoints
@@ -9,6 +9,37 @@ This demo showcases all **6 autonomous agents** operating in sequence over Icebe
 ---
 
 ## Demo Flow
+
+### 0️⃣ **Orchestrator** (Supervisor/Mission Control) — 2–3 min
+**Goal**: Demonstrate end-to-end coordination of all agents
+**Pattern**: LangGraph supervisor that delegates to specialist agents
+
+#### Steps:
+1. Open browser: http://localhost:5173
+2. **Click Orchestrator** in left sidebar (⚡ icon at top)
+3. Paste a comprehensive task:
+   ```
+   "I have 3 new data sources (Kafka topics). 
+    Discover them, classify sensitivity, validate quality, 
+    build an ingestion pipeline, and monitor it."
+   ```
+4. Click **Execute** and watch the Orchestrator coordinate:
+   - **Step 1**: Delegate to Source Scout → discover the 3 topics
+   - **Step 2**: Hand results to Metadata Curator → classify as `RESTRICTED` (PII detected)
+   - **Step 3**: Forward to Quality Guardian → validate data quality
+   - **Step 4**: Route to Pipeline Builder → generate ingest pipeline
+   - **Step 5**: Activate Pipeline Healer → start monitoring
+
+#### What to show:
+- **Agent Coordination Graph**: Visual DAG of which agent called which
+- **Data Flow**: Highlight how Source Scout output feeds into Metadata Curator input
+- **Metrics**: Total cost (LLM tokens), total latency, success rate per agent
+- **Decision Log**: Every decision timestamped + JSON record for compliance
+
+#### Key talking point:
+> "One command orchestrates 5 agents in parallel/sequence. No manual handoff. Full cost visibility and audit trail."
+
+---
 
 ### 1️⃣ **Source Scout** (ReAct Agent) — 3–4 min
 **Goal**: Auto-discover and profile data assets  
@@ -153,33 +184,6 @@ This demo showcases all **6 autonomous agents** operating in sequence over Icebe
 
 ---
 
-### 7️⃣ **Orchestrator** (Supervisor) — 2–3 min
-**Goal**: Coordinate all 6 agents into a single workflow  
-**Pattern**: LangGraph supervisor with tool delegation
-
-#### Steps:
-1. Click **Orchestrator** in left nav
-2. Paste a high-level goal:
-   ```
-   "I just got 3 new data sources (Kafka topics). 
-    Discover them, classify sensitivity, ensure quality, 
-    build an ingestion pipeline, and monitor it."
-   ```
-3. Watch the Supervisor orchestrate:
-   - **Step 1**: Delegate to Source Scout → discover the 3 topics
-   - **Step 2**: Hand results to Metadata Curator → classify as `RESTRICTED` (PII detected)
-   - **Step 3**: Forward to Quality Guardian → validate data quality
-   - **Step 4**: Route to Pipeline Builder → generate ingest pipeline
-   - **Step 5**: Activate Pipeline Healer → start monitoring
-
-#### What to show:
-- **Agent Coordination Graph**: Visual DAG of which agent called which
-- **Data Flow**: Highlight how Source Scout output feeds into Metadata Curator input
-- **Metrics**: Total cost (LLM tokens), total latency, success rate per agent
-- **Decision Log**: Every decision timestamped + JSON record for compliance
-
-#### Key insight:
-> "One user command orchestrates 5 agents in parallel/sequence. No manual handoff."
 
 ---
 

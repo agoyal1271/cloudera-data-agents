@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { box-sizing: border-box; }
+  html, body, #root { height: 100%; margin: 0; padding: 0; }
+
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+                 'Inter', 'Segoe UI', sans-serif;
+    font-size: 1rem;       /* 16px base — iOS-like; nothing shrinks below 14px */
+    line-height: 1.55;
+    letter-spacing: -0.01em;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    background-color: #0B0F16;
+    color: #EAEDF2;        /* clean neutral near-white */
+  }
+
+  /* Scrollbars — Cloudera style */
+  ::-webkit-scrollbar        { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track  { background: transparent; }
+  ::-webkit-scrollbar-thumb  { background: #1e3a55; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #2a4f72; }
+
+  /* Enforce Tailwind scale floor — 14px minimum body/label text */
+  .text-xs { font-size: 0.875rem !important; }  /* 14px hard floor */
+}
+
+@layer utilities {
+  /* Cloudera orange focus ring for interactive elements */
+  .focus-cdp:focus {
+    outline: 2px solid #F96702;
+    outline-offset: 2px;
+  }
+  /* Left-border selection indicator */
+  .selected-row {
+    border-left: 2px solid #F96702;
+    background-color: rgba(249, 103, 2, 0.08);
+  }
+}
